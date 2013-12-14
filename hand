@@ -1,0 +1,50 @@
+module Hand where
+import System.Random
+import System.Random.Shuffle
+import Control.Monad.Random
+import Control.Monad.Random.Class
+import Control.Monad.State
+import Data.List.Split
+import Data.Functor
+import Data.List
+
+data Suit = Club | Diamond | Heart | Spade
+    deriving (Read, Enum, Eq, Ord)
+
+instance Show Suit where
+    show Club = "C"
+    show Diamond = "D"
+    show Heart = "H"
+    show Spade = "S"
+
+showRank :: Int -> String
+showRank 8 = "T"
+showRank 9 = "J"
+showRank 10 = "Q"
+showRank 11 = "K"
+showRank 12 = "A"
+showRank x = show $ x + 2
+    
+data Card = Card {rank :: Int, suit :: Suit}
+    deriving (Read, Eq)
+
+instance Ord Card where
+   compare (Card r1 s1) (Card r2 s2)
+        | s1 /= s2 = compare s1 s2
+        | r1 /= r2 = compare r1 r2
+        | otherwise = EQ
+
+instance Show Card where
+    show (Card r s) = showRank r ++ show s
+
+fulldeck = [Card val su | val <- [0 .. 12], su <- [Club .. Spade]]
+
+data Hand = Hand {north :: [Card], east :: [Card], south :: [Card], west :: [Card]}
+    deriving (Eq, Read, Show)
+
+deal d =
+    let [north, east, south, west] = reverse <$> sort <$> chunksOf 13 d
+        in Hand north east south west
+
+randDealM :: (RandomGen g) => Rand g Hand
+randDealM = shuffleM fulldeck >>= return . deal

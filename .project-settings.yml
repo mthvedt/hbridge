@@ -5,6 +5,8 @@ extensions: {}
 environment: ghc-7.4.2-stable-13.09
 cabal-file: project.cabal
 modules:
+  Hand:
+    filename: hand
   Main(src/Main.hs):
     filename: src/Main.hs
 version: 1
