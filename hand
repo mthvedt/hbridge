@@ -9,15 +9,16 @@ import Data.Functor
 import Data.List
 
 data Suit = Club | Diamond | Heart | Spade
-    deriving (Read, Enum, Eq, Ord)
+    deriving (Read, Show, Enum, Eq, Ord)
 
-instance Show Suit where
-    show Club = "C"
-    show Diamond = "D"
-    show Heart = "H"
-    show Spade = "S"
+data Direction = North | East | South | West
+    deriving (Read, Show, Enum, Eq, Ord)
 
-showRank :: Int -> String
+showShort Club = "C"
+showShort Diamond = "D"
+showShort Heart = "H"
+showShort Spade = "S"
+
 showRank 8 = "T"
 showRank 9 = "J"
 showRank 10 = "Q"
@@ -35,16 +36,26 @@ instance Ord Card where
         | otherwise = EQ
 
 instance Show Card where
-    show (Card r s) = showRank r ++ show s
+    show (Card r s) = showRank r ++ showShort s
 
-fulldeck = [Card val su | val <- [0 .. 12], su <- [Club .. Spade]]
+fulldeck = [Card v s | v <- [0 .. 12], s <- [Club .. Spade]]
 
 data Hand = Hand {north :: [Card], east :: [Card], south :: [Card], west :: [Card]}
     deriving (Eq, Read, Show)
 
-deal d =
+dealHand d =
     let [north, east, south, west] = reverse <$> sort <$> chunksOf 13 d
         in Hand north east south west
 
 randDealM :: (RandomGen g) => Rand g Hand
-randDealM = shuffleM fulldeck >>= return . deal
+randDealM = liftM dealHand $ shuffleM fulldeck
+
+data Board = Board {deal :: Hand, dealer :: Direction, trump :: Suit}
+    deriving (Read, Eq, Show)
+
+randBoardM :: (RandomGen g) => Rand g Board
+randBoardM = do
+    d <- randDealM
+    trump <- liftM toEnum $ getRandomR (0, 3)
+    suit <- liftM toEnum $ getRandomR (0, 3)
+    return $ Board d trump suit

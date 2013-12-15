@@ -7,4 +7,4 @@ import System.Random
 -- | The main entry point.
 main :: IO ()
 main = do
-    putStrLn $ show $ evalRand randDealM $ mkStdGen 0
+    putStrLn $ show $ evalRand randBoardM $ mkStdGen 0
