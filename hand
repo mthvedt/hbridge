@@ -9,10 +9,10 @@ import Data.Functor
 import Data.List
 
 data Suit = Club | Diamond | Heart | Spade
-    deriving (Read, Show, Enum, Eq, Ord)
+    deriving (Show, Enum, Eq, Ord)
 
 data Direction = North | East | South | West
-    deriving (Read, Show, Enum, Eq, Ord)
+    deriving (Show, Enum, Eq, Ord)
 
 showShort Club = "C"
 showShort Diamond = "D"
@@ -27,7 +27,7 @@ showRank 12 = "A"
 showRank x = show $ x + 2
     
 data Card = Card {rank :: Int, suit :: Suit}
-    deriving (Read, Eq)
+    deriving (Eq)
 
 instance Ord Card where
    compare (Card r1 s1) (Card r2 s2)
@@ -38,24 +38,38 @@ instance Ord Card where
 instance Show Card where
     show (Card r s) = showRank r ++ showShort s
 
-fulldeck = [Card v s | v <- [0 .. 12], s <- [Club .. Spade]]
+fulldeck = [Card v s | v <- [0 .. 12], s <- [Club ..]]
+randDeckM :: (RandomGen g) => Rand g [Card]
+randDeckM = shuffleM fulldeck
 
-data Hand = Hand {north :: [Card], east :: [Card], south :: [Card], west :: [Card]}
-    deriving (Eq, Read, Show)
+data Hand = Hand {spades :: [Int], hearts :: [Int], diams :: [Int], clubs :: [Int]}
+    deriving (Eq)
+
+instance Show Hand where
+    show (Hand s h d c) =
+        let showSuit name suit = foldl (++) name $ map showRank $ reverse $ sort suit
+            in unwords $ zipWith showSuit ["S", "H", "D", "C"] [s, h, d, c]
+
+splitHand cards =
+    let [s, h, d, c] = map rank <$> map (\x -> filter (\y -> x == suit y) cards) [Club ..]
+        in Hand s h d c
+
+data Deal = Deal {north :: Hand, east :: Hand, south :: Hand, west :: Hand}
+    deriving (Eq, Show)
 
 dealHand d =
-    let [north, east, south, west] = reverse <$> sort <$> chunksOf 13 d
-        in Hand north east south west
+    let [north, east, south, west] = splitHand <$> chunksOf 13 d
+        in Deal north east south west
 
-randDealM :: (RandomGen g) => Rand g Hand
-randDealM = liftM dealHand $ shuffleM fulldeck
+randDealM :: (RandomGen g) => Rand g Deal
+randDealM = liftM dealHand $ randDeckM
 
-data Board = Board {deal :: Hand, dealer :: Direction, trump :: Suit}
-    deriving (Read, Eq, Show)
+data Board = Board {deal :: Deal, dealer :: Direction, trump :: Suit}
+    deriving (Eq, Show)
 
 randBoardM :: (RandomGen g) => Rand g Board
 randBoardM = do
     d <- randDealM
-    trump <- liftM toEnum $ getRandomR (0, 3)
-    suit <- liftM toEnum $ getRandomR (0, 3)
-    return $ Board d trump suit
+    trump <- getRandomR (0, 3)
+    suit <- getRandomR (0, 3)
+    return $ Board d (toEnum trump) (toEnum suit)

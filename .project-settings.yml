@@ -7,6 +7,8 @@ cabal-file: project.cabal
 modules:
   Hand:
     filename: hand
+  Bidding:
+    filename: src/Bidding.hs
   Main(src/Main.hs):
     filename: src/Main.hs
 version: 1

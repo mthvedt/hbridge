@@ -1,6 +1,6 @@
 hbridge
 =======
 
-Bridge utilities in Haskell.
+Experiments and utilities in the game of Contract Bridge.
 
-This project is the work of someone trying to learn Haskell, and should be treated as such.
+This is a "teach myself Haskell" project, but you can use it if you like. It's released under the Eclipse license.
