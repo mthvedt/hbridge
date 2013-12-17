@@ -8,4 +8,5 @@ gorenHCP x = case x of
     9 -> 1
     _ -> 0
 
-hcpCount countf x = gatherHand countf (+) 0 x
+hcpCount countf = gatherHand countf (+) 0
+hcpCountDeal countf = mapDeal $ hcpCount countf
