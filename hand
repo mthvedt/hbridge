@@ -7,6 +7,7 @@ import Control.Monad.State
 import Data.List.Split
 import Data.Functor
 import Data.List
+import qualified Data.Foldable as F
 
 data Suit = Club | Diamond | Heart | Spade
     deriving (Show, Enum, Eq, Ord)
@@ -45,10 +46,14 @@ randDeckM = shuffleM fulldeck
 data Hand = Hand {spades :: [Int], hearts :: [Int], diams :: [Int], clubs :: [Int]}
     deriving (Eq)
 
+mapHand f (Hand s h d c) = map f [s, h, d, c]
+foldrHand f a (Hand s h d c) = foldr f a $ map (foldr f a) [s, h, d, c]
+gatherHand f m a (Hand s h d c) = foldr m a $ concat $ map f <$> [s, h, d, c]
+
 instance Show Hand where
     show (Hand s h d c) =
         let showSuit name suit = foldl (++) name $ map showRank $ reverse $ sort suit
-            in unwords $ zipWith showSuit ["S", "H", "D", "C"] [s, h, d, c]
+            in unwords $ zipWith showSuit ["s", "h", "d", "c"] [s, h, d, c]
 
 splitHand cards =
     let [s, h, d, c] = map rank <$> map (\x -> filter (\y -> x == suit y) cards) [Club ..]
@@ -56,6 +61,8 @@ splitHand cards =
 
 data Deal = Deal {north :: Hand, east :: Hand, south :: Hand, west :: Hand}
     deriving (Eq, Show)
+
+mapDeal f (Deal n e s w) = f <$> [n, e, s, w]
 
 dealHand d =
     let [north, east, south, west] = splitHand <$> chunksOf 13 d
