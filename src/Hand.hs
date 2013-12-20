@@ -15,10 +15,14 @@ data Suit = Club | Diamond | Heart | Spade
 data Direction = North | East | South | West
     deriving (Show, Enum, Eq, Ord)
 
-showShort Club = "C"
-showShort Diamond = "D"
-showShort Heart = "H"
-showShort Spade = "S"
+class Show1 x where
+    show1 :: x -> [Char]
+
+instance Show1 Suit where 
+    show1 Club = "C"
+    show1 Diamond = "D"
+    show1 Heart = "H"
+    show1 Spade = "S"
 
 showRank 8 = "T"
 showRank 9 = "J"
@@ -26,6 +30,19 @@ showRank 10 = "Q"
 showRank 11 = "K"
 showRank 12 = "A"
 showRank x = show $ x + 2
+
+data Strain = Trump Suit | Notrump
+    deriving (Show, Eq, Ord)
+
+instance Show1 Strain where
+    show1 Notrump = "N"
+    show1 (Trump s) = show1 s
+
+data Bid = Bid {level :: Int, strain :: Strain}
+    deriving (Eq)
+
+instance Show Bid where
+    show (Bid l s) = show l ++ show1 s
     
 data Card = Card {rank :: Int, suit :: Suit}
     deriving (Eq)
@@ -37,7 +54,7 @@ instance Ord Card where
         | otherwise = EQ
 
 instance Show Card where
-    show (Card r s) = showRank r ++ showShort s
+    show (Card r s) = showRank r ++ show1 s
 
 fulldeck = [Card v s | v <- [0 .. 12], s <- [Club ..]]
 randDeckM :: (RandomGen g) => Rand g [Card]
@@ -45,6 +62,13 @@ randDeckM = shuffleM fulldeck
 
 data Hand = Hand {spades :: [Int], hearts :: [Int], diams :: [Int], clubs :: [Int]}
     deriving (Eq)
+
+getSuit (Hand s h d c) su =
+    case su of
+        Spade -> s
+        Heart -> h
+        Diamond -> d
+        Club -> c
 
 mapHand f (Hand s h d c) = map f [s, h, d, c]
 foldrHand f a (Hand s h d c) = foldr f a $ map (foldr f a) [s, h, d, c]
@@ -55,12 +79,20 @@ instance Show Hand where
         let showSuit name suit = foldl (++) name $ map showRank $ reverse $ sort suit
             in unwords $ zipWith showSuit ["s", "h", "d", "c"] [s, h, d, c]
 
+-- TODO: the requirement that hands be sorted is poorly encapsulated
 splitHand cards =
-    let [s, h, d, c] = map rank <$> map (\x -> filter (\y -> x == suit y) cards) [Club ..]
+    let [s, h, d, c] = reverse <$> sort <$> map rank <$> map (\x -> filter (\y -> x == suit y) cards) [Club ..]
         in Hand s h d c
 
 data Deal = Deal {north :: Hand, east :: Hand, south :: Hand, west :: Hand}
     deriving (Eq, Show)
+
+getHand (Deal n e s w) d =
+    case d of
+        North -> n
+        East -> e
+        South -> s
+        West -> w
 
 mapDeal f (Deal n e s w) = f <$> [n, e, s, w]
 
@@ -71,12 +103,5 @@ dealHand d =
 randDealM :: (RandomGen g) => Rand g Deal
 randDealM = liftM dealHand $ randDeckM
 
-data Board = Board {deal :: Deal, dealer :: Direction, trump :: Suit}
+data Board = Board {deal :: Deal, dealer :: Direction, contract :: Bid}
     deriving (Eq, Show)
-
-randBoardM :: (RandomGen g) => Rand g Board
-randBoardM = do
-    d <- randDealM
-    trump <- getRandomR (0, 3)
-    suit <- getRandomR (0, 3)
-    return $ Board d (toEnum trump) (toEnum suit)
