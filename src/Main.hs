@@ -13,3 +13,4 @@ main = do
     putStrLn $ show $ d
     putStrLn $ show $ B.hcpCountDeal B.gorenHCP d
     putStrLn $ show $ S.candidatePlays (H.north d) H.Heart
+    putStrLn $ show $ S.initDDLine d (H.Trump H.Heart) H.North

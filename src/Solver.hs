@@ -1,15 +1,19 @@
 module Solver where
 import Hand
 import Control.Monad.State
-
-data DDState = DDState 
-    {deal :: Deal, trump :: Suit,
-    hotseat :: Direction, highPlayer :: Maybe Direction, highCard :: Maybe Card, playCount :: Int}
+import Data.List
+import Data.Functor
 
 candidatePlays hand trump =
-    concat $ map (\s -> map (\c -> Card c s) $ getSuit hand s) (trump:(filter (\x -> x /= trump) [Spade, Heart, Diamond, Club]))
+    concat $ map (\s -> map (\c -> Card c s) $ getSuit hand s) (trump:(filter (trump /=) $ reverse [Club ..]))
+
+data DDState = DDState 
+    {deal :: Deal, trump :: Strain,
+    hotseat :: Direction, highPlayer :: Maybe Direction, highCard :: Maybe Card, playCount :: Int}
+    deriving (Eq, Show)
 
 data DDLine = DDLine {state :: DDState, plays :: [Card], nsTricks :: Int}
+    deriving (Eq, Show)
 
 initDDLine deal trump declarer = DDLine (DDState deal trump declarer Nothing Nothing 0) [] 0
 
