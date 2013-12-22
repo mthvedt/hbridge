@@ -1,5 +1,9 @@
 module Bidding where
 import Hand
+import Data.Array
+import Data.Functor
+import qualified Data.Foldable as F
+import Data.Traversable
 
 gorenHCP x = case x of
     12 -> 4
@@ -8,5 +12,6 @@ gorenHCP x = case x of
     9 -> 1
     _ -> 0
 
-hcpCount countf = gatherHand countf (+) 0
-hcpCountDeal countf = mapDeal $ hcpCount countf
+hcpCountCards countf ints = F.foldl (+) 0 $ fmap countf ints
+hcpCountHand countf (Hand ss) = hcpCountCards countf $ F.foldl (++) [] ss
+hcpCountDeal countf (Deal hs) = fmap (hcpCountHand countf) hs

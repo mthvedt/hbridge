@@ -7,7 +7,7 @@ import Control.Monad.State
 import Data.List.Split
 import Data.Functor
 import Data.List
-import qualified Data.Foldable as F
+import Data.Array
 
 data Suit = Club | Diamond | Heart | Spade
     deriving (Show, Enum, Eq, Ord)
@@ -19,10 +19,10 @@ class Show1 x where
     show1 :: x -> [Char]
 
 instance Show1 Suit where 
-    show1 Club = "C"
-    show1 Diamond = "D"
-    show1 Heart = "H"
-    show1 Spade = "S"
+    show1 Club = "c"
+    show1 Diamond = "d"
+    show1 Heart = "h"
+    show1 Spade = "s"
 
 showRank 8 = "T"
 showRank 9 = "J"
@@ -60,48 +60,30 @@ fulldeck = [Card v s | v <- [0 .. 12], s <- [Club ..]]
 randDeckM :: (RandomGen g) => Rand g [Card]
 randDeckM = shuffleM fulldeck
 
-data Hand = Hand {spades :: [Int], hearts :: [Int], diams :: [Int], clubs :: [Int]}
+newtype Hand = Hand {_suits :: Array Int [Int]}
     deriving (Eq)
 
-getSuit (Hand s h d c) su =
-    case su of
-        Spade -> s
-        Heart -> h
-        Diamond -> d
-        Club -> c
-
-mapHand f (Hand s h d c) = map f [s, h, d, c]
-foldrHand f a (Hand s h d c) = foldr f a $ map (foldr f a) [s, h, d, c]
-gatherHand f m a (Hand s h d c) = foldr m a $ concat $ map f <$> [s, h, d, c]
-
 instance Show Hand where
-    show (Hand s h d c) =
-        let showSuit name suit = foldl (++) name $ map showRank $ reverse $ sort suit
-            in unwords $ zipWith showSuit ["s", "h", "d", "c"] [s, h, d, c]
+    show (Hand ss) =
+        let showSuit n s = foldl (++) n $ map showRank $ reverse $ sort s
+            in unwords $ zipWith showSuit (map show1 [Club ..])  $ elems ss
 
--- TODO: the requirement that hands be sorted is poorly encapsulated
-splitHand cards =
-    let [s, h, d, c] = reverse <$> sort <$> map rank <$> map (\x -> filter (\y -> x == suit y) cards) [Club ..]
-        in Hand s h d c
+newHand cards =
+    Hand $ listArray (0, 3) $ reverse <$> sort <$> map rank <$> map (\x -> filter (\y -> x == suit y) cards) [Club ..]
 
-data Deal = Deal {north :: Hand, east :: Hand, south :: Hand, west :: Hand}
-    deriving (Eq, Show)
+newtype Deal = Deal {_hands :: Array Int Hand}
+    deriving (Eq)
+    
+instance Show Deal where
+    show (Deal hs) =
+        let showHand n h = n ++ ": " ++ show h
+            in intercalate ", " $ zipWith showHand ["north", "east", "south", "west"] $ elems hs
 
-getHand (Deal n e s w) d =
-    case d of
-        North -> n
-        East -> e
-        South -> s
-        West -> w
-
-mapDeal f (Deal n e s w) = f <$> [n, e, s, w]
-
-dealHand d =
-    let [north, east, south, west] = splitHand <$> chunksOf 13 d
-        in Deal north east south west
+newDeal d = Deal $ listArray (0, 3) $ newHand <$> chunksOf 13 d
+getHand (Deal arr) i = arr ! i
 
 randDealM :: (RandomGen g) => Rand g Deal
-randDealM = liftM dealHand $ randDeckM
+randDealM = liftM newDeal $ randDeckM
 
 data Board = Board {deal :: Deal, dealer :: Direction, contract :: Bid}
     deriving (Eq, Show)
