@@ -60,7 +60,7 @@ fulldeck = [Card v s | v <- [0 .. 12], s <- [Club ..]]
 randDeckM :: (RandomGen g) => Rand g [Card]
 randDeckM = shuffleM fulldeck
 
-newtype Hand = Hand {_suits :: Array Int [Int]}
+newtype Hand = Hand (Array Int [Int])
     deriving (Eq)
 
 instance Show Hand where
@@ -71,7 +71,7 @@ instance Show Hand where
 newHand cards =
     Hand $ listArray (0, 3) $ reverse <$> sort <$> map rank <$> map (\x -> filter (\y -> x == suit y) cards) [Club ..]
 
-newtype Deal = Deal {_hands :: Array Int Hand}
+newtype Deal = Deal (Array Int Hand)
     deriving (Eq)
     
 instance Show Deal where
