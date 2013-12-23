@@ -12,10 +12,11 @@ import Solver.Generic
 main :: IO ()
 main = do
     let d = Rand.evalRand H.randDealM $ Rand.mkStdGen 0
-    putStrLn $ show $ d
+    -- putStrLn $ show $ d
     -- putStrLn $ show $ B.hcpCountDeal B.gorenHCP d
-    putStrLn $ show $ S.candidatePlays (H.getHand d 1) H.Heart
-    putStrLn $ show $ S.initDDLine d (H.Trump H.Heart) H.North
-    let n = Nim True 3
-    putStrLn $ show $ rank n
-    putStrLn $ show $ moves n
+    -- putStrLn $ show $ S.candidatePlays (H.getHand d 1) H.Heart
+    -- putStrLn $ show $ S.initDDLine d (H.Trump H.Heart) H.North
+    let n = Nim True 14
+    --putStrLn $ show $ rank n
+    --putStrLn $ show $ moves n
+    playGame n
