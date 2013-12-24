@@ -24,12 +24,16 @@ instance Show1 Suit where
     show1 Heart = "h"
     show1 Spade = "s"
 
-showRank 8 = "T"
-showRank 9 = "J"
-showRank 10 = "Q"
-showRank 11 = "K"
-showRank 12 = "A"
-showRank x = show $ x + 2
+newtype Rank = Rank Int
+    deriving (Eq, Ord)
+
+instance Show1 Rank where
+    show1 (Rank 8) = "T"
+    show1 (Rank 9) = "J"
+    show1 (Rank 10) = "Q"
+    show1 (Rank 11) = "K"
+    show1 (Rank 12) = "A"
+    show1 (Rank x) = show $ x + 2
 
 data Strain = Trump Suit | Notrump
     deriving (Show, Eq, Ord)
@@ -44,7 +48,7 @@ data Bid = Bid {level :: Int, strain :: Strain}
 instance Show Bid where
     show (Bid l s) = show l ++ show1 s
     
-data Card = Card {rank :: Int, suit :: Suit}
+data Card = Card {rank :: Rank, suit :: Suit}
     deriving (Eq)
 
 instance Ord Card where
@@ -54,22 +58,25 @@ instance Ord Card where
         | otherwise = EQ
 
 instance Show Card where
-    show (Card r s) = showRank r ++ show1 s
+    show (Card r s) = show1 r ++ show1 s
 
-fulldeck = [Card v s | v <- [0 .. 12], s <- [Club ..]]
+fulldeck = [Card (Rank v) s | v <- [0 .. 12], s <- [Club ..]]
 randDeckM :: (RandomGen g) => Rand g [Card]
 randDeckM = shuffleM fulldeck
 
-newtype Hand = Hand (Array Int [Int])
+newtype Hand = Hand (Array Int [Rank])
     deriving (Eq)
 
 instance Show Hand where
     show (Hand ss) =
-        let showSuit n s = foldl (++) n $ map showRank $ reverse $ sort s
-            in unwords $ zipWith showSuit (map show1 [Club ..])  $ elems ss
+        let showSuit n s = foldl (++) (show1 n) . map show1 . reverse $ sort s
+            in unwords . zipWith showSuit [Club ..] $ elems ss
 
 newHand cards =
-    Hand $ listArray (0, 3) $ reverse <$> sort <$> map rank <$> map (\x -> filter (\y -> x == suit y) cards) [Club ..]
+    Hand . listArray (0, 3) $ reverse . sort . map rank <$> map (\x -> filter ((==) x . suit) cards) [Club ..]
+
+getSuit :: Hand -> Suit -> [Rank]
+getSuit (Hand ss) i = ss ! fromEnum i
 
 newtype Deal = Deal (Array Int Hand)
     deriving (Eq)
@@ -77,10 +84,11 @@ newtype Deal = Deal (Array Int Hand)
 instance Show Deal where
     show (Deal hs) =
         let showHand n h = n ++ ": " ++ show h
-            in intercalate ", " $ zipWith showHand ["north", "east", "south", "west"] $ elems hs
+            in intercalate ", " . zipWith showHand ["north", "east", "south", "west"] $ elems hs
 
-newDeal d = Deal $ listArray (0, 3) $ newHand <$> chunksOf 13 d
-getHand (Deal arr) i = arr ! i
+newDeal d = Deal . listArray (0, 3) $ newHand <$> chunksOf 13 d
+getHand :: Deal -> Direction -> Hand
+getHand (Deal arr) i = arr ! fromEnum i
 
 randDealM :: (RandomGen g) => Rand g Deal
 randDealM = liftM newDeal $ randDeckM

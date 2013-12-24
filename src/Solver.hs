@@ -4,9 +4,10 @@ import Control.Monad.State
 import Data.List
 import Data.Functor
 import Data.Array
+import Solver.Generic
 
-candidatePlays (Hand hand) trump =
-    concat $ map (\s -> map (\c -> Card c s) $ hand ! fromEnum s) (trump:(filter (trump /=) $ reverse [Club ..]))
+candidatePlays hand trump =
+    concat $ map (\s -> map (\c -> Card c s) $ getSuit hand s) (trump:(filter (trump /=) $ reverse [Club ..]))
 
 data DDState = DDState 
     {deal :: Deal, trump :: Strain,
