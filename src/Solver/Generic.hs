@@ -3,25 +3,19 @@ module Solver.Generic where
 import Data.List
 import Data.Function
 
--- A game tree that is solvable using your typical tree solving algorithms.
--- An GameTree is completely specified by p, the game positions (= tree nodes).
+-- A two player zero sum game with alternating turns.
 -- p: a position type
 -- k: a position key
 -- m: a move type
 -- s: a score type
--- v: a player score type
-class (Eq k, Ord v) => GameTree p m s v k | p -> m s v k where
+class (Eq k, Ord s) => GameTree p m s k | p -> m s k where
     -- The key for this position.
     -- Two positions with the same key are considered identical
     -- (but can have different scores).
     key :: p -> k
-    -- A score is a value that represents the player score of various players.
-    -- The goal of each player in a game is to maximize player score.
+    player :: p -> Bool
+    -- The goal of the True player is to maximize score, the False player to minimze it.
     score :: p -> s
-    -- Given a score, yields the player score for the current player.
-    -- 'Perfect play' is defined as the sequence of moves s.t. each step tries to maximize the final score.
-    -- Some solution algorithms might also look at the current score for any position to try to exclude certain lines of play.
-    scorePlayer :: p -> s -> v
     -- True if the game is over.
     isFinal :: p -> Bool
     -- Given a position, returns the (move, position) pairs reachable.
@@ -35,34 +29,36 @@ legal (Nim _ i) = i >= 0
 move (Nim p i) j = Nim (not p) (i - j)
 
     -- A test class for GameTree
-instance GameTree Nim Int Int Int Nim where
+instance GameTree Nim Int Ordering Nim where
     key = id
+    player (Nim p _) = p
     score (Nim p i) =
         case i of
-            0 -> if p then 1 else -1
-            1 -> if p then 1 else -1
-            _ -> 0
-    scorePlayer (Nim p _) i = if p then i else -i
+            0 -> if p then GT else LT
+            1 -> if p then LT else GT
+            _ -> EQ
     isFinal (Nim _ i) = i `elem` [0, 1]
     moves n = filter (legal . snd) $ map (\i -> (i, move n i)) [2, 3, 4]
 
--- minimax1 :: (GameTree p m s v k) => p -> s
+-- minimax1 :: (GameTree p m s k) => p -> s
 minimax1 pos =
     if isFinal pos
     then score pos
-    else maximumBy (compare `on` scorePlayer pos) $ map (minimax1 . snd) $ moves pos
+    else (if player pos then maximum else minimum) $ map (minimax1 . snd) $ moves pos
     
--- minimax :: (GameTree p m s v k) =>  p -> (m, p)
+-- minimax :: (GameTree p m s k) =>  p -> (m, p)
 minimax pos =
-    maximumBy (compare `on` scorePlayer pos . minimax1 . snd) $ moves pos
+    (if player pos then maximumBy else minimumBy) (compare `on` minimax1 . snd) $ moves pos
 
--- minimaxP :: (GameTree p m s v k) =>  p -> ([m], s)
+minimaxP :: (GameTree p m s k) =>  p -> ([m], s)
 minimaxP pos =
     if isFinal pos
     then ([], score pos)
     else let scorer (m, p) = let (ms, s) = minimaxP p
                                  in (m:ms, s)
-          in maximumBy (compare `on` scorePlayer pos . snd) $ map scorer $ moves pos
+          in (if player pos then maximumBy else minimumBy) (compare `on` snd) $ map scorer $ moves pos
+
+-- solveAlphaBeta1 pos alpha beta =
 
 -- playGame :: Nim -> IO ()
 
