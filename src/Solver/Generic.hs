@@ -8,7 +8,7 @@ import Data.Function
 -- k: a position key
 -- m: a move type
 -- s: a score type
-class (Eq k, Ord s) => GameTree p m s k | p -> m s k where
+class (Eq k, Num s, Ord s) => GameTree p m s k | p -> m s k where
     -- The key for this position.
     -- Two positions with the same key are considered identical
     -- (but can have different scores).
@@ -21,6 +21,8 @@ class (Eq k, Ord s) => GameTree p m s k | p -> m s k where
     -- Given a position, returns the (move, position) pairs reachable.
     -- Note that the OrderedSolvable typeclass doesn't establish a behavior for the move type.
     moves :: p -> [(m, p)]
+    children :: p -> [p]
+    children p = map snd $ moves p
 
 data Nim = Nim Bool Int
     deriving (Eq, Show)
@@ -29,36 +31,44 @@ legal (Nim _ i) = i >= 0
 move (Nim p i) j = Nim (not p) (i - j)
 
     -- A test class for GameTree
-instance GameTree Nim Int Ordering Nim where
+instance GameTree Nim Int Int Nim where
     key = id
     player (Nim p _) = p
     score (Nim p i) =
         case i of
-            0 -> if p then GT else LT
-            1 -> if p then LT else GT
-            _ -> EQ
+            0 -> if p then 1 else -1
+            1 -> if p then -1 else 1
+            _ -> 0
     isFinal (Nim _ i) = i `elem` [0, 1]
     moves n = filter (legal . snd) $ map (\i -> (i, move n i)) [2, 3, 4]
-
+    
 -- minimax1 :: (GameTree p m s k) => p -> s
-minimax1 pos =
+minimax pos =
     if isFinal pos
     then score pos
-    else (if player pos then maximum else minimum) $ map (minimax1 . snd) $ moves pos
-    
--- minimax :: (GameTree p m s k) =>  p -> (m, p)
-minimax pos =
-    (if player pos then maximumBy else minimumBy) (compare `on` minimax1 . snd) $ moves pos
+    else maximum $ map maximin $ children pos
 
-minimaxP :: (GameTree p m s k) =>  p -> ([m], s)
-minimaxP pos =
+maximin pos =
     if isFinal pos
-    then ([], score pos)
-    else let scorer (m, p) = let (ms, s) = minimaxP p
-                                 in (m:ms, s)
-          in (if player pos then maximumBy else minimumBy) (compare `on` snd) $ map scorer $ moves pos
+    then score pos
+    else maximum $ map minimax $ children pos
 
--- solveAlphaBeta1 pos alpha beta =
+solveAlphaBeta1 alpha beta (p:ps) =
+    case ps of
+        [] -> knownscore
+        _ -> if newbeta <= newalpha
+             then knownscore
+             else scorecmp pscore $ solveAlphaBeta1 newalpha newbeta ps
+    where scorecmp = if player p then max else min
+          currscore = score p
+          pscore = if isFinal p then currscore else solveAlphaBeta1 alpha beta $ children p
+          newalpha = if player p then max alpha pscore else alpha
+          newbeta = if not $ player p then min beta pscore else beta
+          knownscore = if player p then alpha else beta
+
+solveWith :: (GameTree p m s k) => (p -> s) -> p -> (m, s)
+solveWith solvef pos =
+    (if player pos then maximumBy else minimumBy) (compare `on` snd) $ zip (map fst $ moves pos) (map solvef $ children pos)
 
 -- playGame :: Nim -> IO ()
 
@@ -68,9 +78,9 @@ playGame pos =
         putStrLn $ "Final position: " ++ show pos
         putStrLn $ "Final score: " ++ show (score pos)
     else do
-        let (m:ms, s) = minimaxP pos
+        let (m, s) = solveWith minimax pos
         putStrLn $ "Position: " ++ show pos
         putStrLn $ "Move: " ++ show m
-        putStrLn $ "Prinicpal variation: " ++ show ms
-        putStrLn $ "Predicted score: " ++ show s
+        -- putStrLn $ "Prinicpal variation: " ++ show ms
+        -- putStrLn $ "Predicted score: " ++ show s
         playGame $ move pos m
