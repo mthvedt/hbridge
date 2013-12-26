@@ -1,11 +1,10 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, RankNTypes #-}
 module Solver.Generic where
 import Data.List
 import Data.Function
+import Control.Monad
 import Control.Monad.ST
-import qualified Data.HashTable.Class as HC
-import qualified Data.HashTable.ST.Basic as HST
+import Data.STRef
 
 -- A two player zero sum game with alternating turns.
 -- p: a position type
@@ -46,46 +45,40 @@ instance GameTree Nim Int Int Nim where
     isFinal (Nim _ i) = i `elem` [0, 1]
     moves n = filter (legal . snd) $ map (\i -> (i, move n i)) [2, 3, 4]
 
-class (Eq k) => MemoTable t k s | t -> k s where
-    saveT :: t -> k -> s -> t
-    lookupT :: t -> k -> Maybe s
-
--- Trivial memo table
-data Void = Void
-instance MemoTable Void Nim Int where
-    saveT t _ _ = t
-    lookupT _ _ = Nothing
-
-doMemo :: (GameTree p m s k, MemoTable t k s) => (t -> p -> (s, t)) -> t -> p -> (s, t)
-doMemo f t p = case lookupT t k of
-    Just r -> (r, t)
-    Nothing -> (r, saveT t2 k r)
-        where (r, t2) = f t p
-    where k = key p
-
-mapHelper :: (GameTree p m s k, MemoTable t k s) => (t -> p -> (s, t)) -> t -> [p] -> ([s], t)
-mapHelper f t (p:ps) = (s:ss, t3)
-    where (s, t2) = doMemo f t p
-          (ss, t3) = case ps of
-                [] -> ([], t2)
-                _ -> mapHelper f t2 ps
-    
-minimax :: (GameTree p m s k, MemoTable t k s) => t -> p -> (s, t)
-minimax t pos =
+scoref f pos =
     if isFinal pos
-    then (score pos, t)
-    else (maximum ss, t2) 
-    where (ss, t2) = mapHelper maximin t $ children pos
+    then score pos
+    else f pos
 
-maximin t pos =
+scorefM :: (GameTree p m s k) => (p -> ST x s) -> p -> ST x s
+scorefM f pos =
     if isFinal pos
-    then (score pos, t)
-    else (minimum ss, t2) 
-    where (ss, t2) = mapHelper minimax t $ children pos
+    then return $ score pos
+    else f pos
 
-solveWith :: (GameTree p m s k, MemoTable t k s) => t -> (t -> p -> (s, t)) -> p -> (m, s)
-solveWith t solvef pos =
-    maximumBy (compare `on` snd) $ zip (map fst $ moves pos) (fst $ mapHelper solvef t $ children pos)
+minimax :: (GameTree p m s k) => p -> s
+minimax = scoref $ \pos -> maximum $ map maximin $ children pos
+
+maximin :: (GameTree p m s k) => p -> s
+maximin = scoref $ \pos -> maximum $ map minimax $ children pos
+
+minimaxM :: (GameTree p m s k) => p -> ST x s
+minimaxM = scorefM $ \pos -> liftM maximum $ mapM maximinM $ children pos
+
+maximinM :: (GameTree p m s k) => p -> ST x s
+maximinM = scorefM $ \pos -> liftM minimum $ mapM minimaxM $ children pos
+
+solveWith :: (GameTree p m s k) => (p -> s) -> p -> (m, s)
+solveWith solvef pos =
+    (if player pos then maximumBy else minimumBy) (compare `on` snd) $ zip (map fst $ moves pos) (map solvef $ children pos)
+
+solveWithM :: (GameTree p m s k) => (p -> ST x s) -> p -> ST x (m, s)
+solveWithM solvef pos = do
+    solutions <- mapM solvef $ children pos
+    return $ (if player pos then maximumBy else minimumBy) (compare `on` snd) $ zip (map fst $ moves pos) solutions
+
+runSolveWith :: (GameTree p m s k) => (forall x. (p -> ST x s)) -> p -> (m, s)
+runSolveWith solvef pos = runST $ solveWithM solvef pos
 
 -- playGame :: Nim -> IO ()
 
@@ -95,8 +88,8 @@ playGame pos =
         putStrLn $ "Final position: " ++ show pos
         putStrLn $ "Final score: " ++ show (score pos)
     else do
+        let (m, s) = runSolveWith minimaxM pos
         putStrLn $ "Position: " ++ show pos
-        let (m, s) = solveWith Void minimax pos
         putStrLn $ "Move: " ++ show m
         -- putStrLn $ "Prinicpal variation: " ++ show ms
         -- putStrLn $ "Predicted score: " ++ show s
