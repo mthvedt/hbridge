@@ -16,7 +16,7 @@ main = do
     -- putStrLn $ show $ B.hcpCountDeal B.gorenHCP d
     -- putStrLn $ show $ S.candidatePlays (H.getHand d 1) H.Heart
     -- putStrLn $ show $ S.initDDLine d (H.Trump H.Heart) H.North
-    let n = Nim True 30
+    let n = Nim True 101
     --putStrLn $ show $ rank n
     --putStrLn $ show $ moves n
     playGame n

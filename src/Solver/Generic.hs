@@ -7,13 +7,14 @@ import Control.Monad.ST
 import Data.STRef
 import qualified Data.HashTable.Class as H
 import qualified Data.HashTable.ST.Basic as HST
+import Data.Hashable
 
 -- A two player zero sum game with alternating turns.
 -- p: a position type
 -- k: a position key
 -- m: a move type
 -- s: a score type
-class (Eq k, Num s, Ord s) => GameTree p m s k | p -> m s k where
+class (Eq k, Hashable k, Num s, Ord s) => GameTree p m s k | p -> m s k where
     -- The key for this position.
     -- Two positions with the same key are considered identical
     -- (but can have different scores).
@@ -34,6 +35,9 @@ data Nim = Nim Bool Int
 
 legal (Nim _ i) = i >= 0
 move (Nim p i) j = Nim (not p) (i - j)
+
+instance Hashable Nim where
+    hashWithSalt s (Nim p i) = hashWithSalt s (p, i)
 
     -- A test class for GameTree
 instance GameTree Nim Int Int Nim where
@@ -58,7 +62,15 @@ scorefST :: (GameTree p m s k) => (HashTable x k s -> p -> ST x s) -> HashTable 
 scorefST f t pos =
     if isFinal pos
     then return $ score pos
-    else f t pos
+    else do
+        let k = key pos
+        mayber <- H.lookup t $ key pos
+        case mayber of
+            Just r -> return r
+            Nothing -> do
+                let s = score pos
+                H.insert t k s
+                return s
 
 minimax :: (GameTree p m s k) => p -> s
 minimax = scoref $ \pos -> maximum $ map maximin $ children pos
@@ -85,8 +97,6 @@ runSolveWith :: (GameTree p m s k) => (forall x. (HashTable x k s -> p -> ST x s
 runSolveWith solvef pos = runST $ do
     t <- HST.new
     solveWithM solvef t pos
-
--- playGame :: Nim -> IO ()
 
 playGame pos =
     if isFinal pos
