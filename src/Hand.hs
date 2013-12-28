@@ -16,7 +16,7 @@ data Direction = North | East | South | West
     deriving (Show, Enum, Eq, Ord)
 
 rotate :: Direction -> Direction
-rotate d = toEnum $ fromEnum d `mod` 4
+rotate d = toEnum $ (fromEnum d + 1) `mod` 4
 
 class Show1 x where
     show1 :: x -> [Char]
