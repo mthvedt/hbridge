@@ -15,8 +15,13 @@ data Suit = Club | Diamond | Heart | Spade
 data Direction = North | East | South | West
     deriving (Show, Enum, Eq, Ord)
 
+data Side = NorthSouth | EastWest
+    deriving (Show, Enum, Eq, Ord)
+
 rotate :: Direction -> Direction
-rotate d = toEnum $ (fromEnum d + 1) `mod` 4
+rotate x = toEnum $ (fromEnum x + 1) `mod` 4
+pair :: Direction -> Side
+pair x = toEnum $ fromEnum x `mod` 2
 
 class Show1 x where
     show1 :: x -> [Char]

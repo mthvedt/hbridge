@@ -5,6 +5,7 @@ import Data.List
 import Data.Functor
 import Data.Array
 import Solver.Generic
+import Data.Maybe
 
 candidatePlaysH hand strain =
     concat $ map (\s -> map (\c -> Card c s) $ getSuit hand s) suits
@@ -14,10 +15,11 @@ candidatePlaysH hand strain =
 
 data DDState = DDState 
     {deal :: Deal, trump :: Strain,
-    hotseat :: Direction, highPlayer :: Maybe Direction, highCard :: Maybe Card, playCount :: Int}
+    hotseat :: Direction, highPlayer :: Maybe Direction, highCard :: Maybe Card, playCount :: Int,
+    nsTricks :: Int}
     deriving (Eq, Show)
 
-initDDState d trump declarer = DDState d trump declarer Nothing Nothing 0
+initDDState d trump declarer = DDState d trump declarer Nothing Nothing 0 0
 candidatePlays state = candidatePlaysH (getHand d h) t
     where d = deal state
           h = hotseat state
@@ -35,16 +37,21 @@ compareCards Notrump (Card r1 s1) (Card r2 s2)
 compareCardsM strain c1 (Just c2) = compareCards strain c1 c2
 compareCardsM strain c1 Nothing = True
 
-playCardS (DDState d t hs hp hc pc) card =
+tryResolve (DDState d t hs hp hc 4 tc) =
+    DDState d t hs Nothing Nothing 0 $ tc + 1 - (fromEnum . pair $ fromJust hp)
+
+tryResolve x = x
+
+playCardS (DDState d t hs hp hc pc ns) card =
     -- todo: resolve trick
-    DDState (playCardD d hs card) t (rotate hs) nhp nhc (pc + 1)
+    tryResolve $ DDState (playCardD d hs card) t (rotate hs) nhp nhc (pc + 1) ns
     where winner = compareCardsM t card hc
           nhc = if winner then Just card else hc
           nhp = if winner then Just hs else hp
 
-data DDLine = DDLine {state :: DDState, plays :: [Card], nsTricks :: Int}
+data DDLine = DDLine {state :: DDState, plays :: [Card]}
     deriving (Eq, Show)
 
-initDDLine deal trump declarer = DDLine (DDState deal trump declarer Nothing Nothing 0) [] 0
+initDDLine deal trump declarer = DDLine (DDState deal trump declarer Nothing Nothing 0 0) []
 
 -- data SolverState = SolverState {nodeCount :: Int}
