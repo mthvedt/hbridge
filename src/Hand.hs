@@ -15,6 +15,9 @@ data Suit = Club | Diamond | Heart | Spade
 data Direction = North | East | South | West
     deriving (Show, Enum, Eq, Ord)
 
+rotate :: Direction -> Direction
+rotate d = toEnum $ fromEnum d `mod` 4
+
 class Show1 x where
     show1 :: x -> [Char]
 
@@ -100,6 +103,3 @@ playCardD (Deal hs) i c = Deal $ hs // [(fromEnum i, playCardH (hs ! fromEnum i)
 
 randDealM :: (RandomGen g) => Rand g Deal
 randDealM = liftM newDeal $ randDeckM
-
-data Board = Board {deal :: Deal, dealer :: Direction, contract :: Bid}
-    deriving (Eq, Show)
