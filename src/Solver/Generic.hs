@@ -25,7 +25,7 @@ class (Eq k, Hashable k, Num s, Ord s) => GameTree p m s k | p -> m s k where
     -- True if the game is over.
     isFinal :: p -> Bool
     -- Given a position, returns the (move, position) pairs reachable.
-    -- Note that the OrderedSolvable typeclass doesn't establish a behavior for the move type.
+    -- Note that the GameTree typeclass doesn't establish a behavior for the move type.
     moves :: p -> [(m, p)]
     children :: p -> [p]
     children p = map snd $ moves p
@@ -35,9 +35,6 @@ data Nim = Nim Bool Int
 
 legal (Nim _ i) = i >= 0
 move (Nim p i) j = Nim (not p) (i - j)
-
-instance Hashable Nim where
-    hashWithSalt s (Nim p i) = hashWithSalt s (p, i)
 
     -- A test class for GameTree
 instance GameTree Nim Int Int Nim where
@@ -50,50 +47,34 @@ instance GameTree Nim Int Int Nim where
             _ -> 0
     isFinal (Nim _ i) = i `elem` [0, 1]
     moves n = filter (legal . snd) $ map (\i -> (i, move n i)) [2, 3, 4]
-    
-scoref f pos =
-    if isFinal pos
-    then score pos
-    else f pos
+
+instance Hashable Nim where
+    hashWithSalt s (Nim p i) = hashWithSalt s (p, i)
 
 type HashTable x k v = HST.HashTable x k v
 
-scorefST :: (GameTree p m s k) => (HashTable x k s -> p -> ST x s) -> HashTable x k s -> p -> ST x s
-scorefST f t pos =
-    if isFinal pos
-    then return $ score pos
-    else do
+scoref :: (GameTree p m s k) => (HashTable q k s -> p -> ST q s) -> HashTable q k s -> p -> ST q s
+scoref f t pos
+    | isFinal pos = return $ score pos
+    | otherwise = do
         let k = key pos
-        mayber <- H.lookup t $ key pos
-        case mayber of
+        mr <- H.lookup t $ key pos
+        case mr of
             Just r -> return r
             Nothing -> do
                 let s = score pos
                 H.insert t k s
                 return s
 
-minimax :: (GameTree p m s k) => p -> s
-minimax = scoref $ \pos -> maximum $ map maximin $ children pos
+minimax :: (GameTree p m s k) => HashTable q k s -> p -> ST q s
+minimax = scoref $ \t pos -> liftM (if player pos then maximum else minimum) $ mapM (minimax t) $ children pos
 
-maximin :: (GameTree p m s k) => p -> s
-maximin = scoref $ \pos -> maximum $ map minimax $ children pos
-
-minimaxST :: (GameTree p m s k) => HashTable x k s -> p -> ST x s
-minimaxST = scorefST $ \t pos -> liftM maximum $ mapM (maximinST t) $ children pos
-
-maximinST :: (GameTree p m s k) => HashTable x k s -> p -> ST x s
-maximinST = scorefST $ \t pos -> liftM minimum $ mapM (minimaxST t) $ children pos
-
-solveWith :: (GameTree p m s k) => (p -> s) -> p -> (m, s)
-solveWith solvef pos =
-    (if player pos then maximumBy else minimumBy) (compare `on` snd) $ zip (map fst $ moves pos) (map solvef $ children pos)
-
-solveWithM :: (GameTree p m s k) => (HashTable x k s -> p -> ST x s) -> HashTable x k s -> p -> ST x (m, s)
+solveWithM :: (GameTree p m s k) => (HashTable q k s -> p -> ST q s) -> HashTable q k s -> p -> ST q (m, s)
 solveWithM solvef t pos = do
     solutions <- mapM (solvef t) $ children pos
     return $ (if player pos then maximumBy else minimumBy) (compare `on` snd) $ zip (map fst $ moves pos) solutions
 
-runSolveWith :: (GameTree p m s k) => (forall x. (HashTable x k s -> p -> ST x s)) -> p -> (m, s)
+runSolveWith :: (GameTree p m s k) => (forall q. (HashTable q k s -> p -> ST q s)) -> p -> (m, s)
 runSolveWith solvef pos = runST $ do
     t <- HST.new
     solveWithM solvef t pos
@@ -105,7 +86,7 @@ playGame pos =
         putStrLn $ "Final score: " ++ show (score pos)
     else do
         -- let (m, s) = solveWith minimax pos
-        let (m, s) = runSolveWith minimaxST pos
+        let (m, s) = runSolveWith minimax pos
         putStrLn $ "Position: " ++ show pos
         putStrLn $ "Move: " ++ show m
         -- putStrLn $ "Prinicpal variation: " ++ show ms
