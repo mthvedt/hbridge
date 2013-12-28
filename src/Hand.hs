@@ -27,6 +27,8 @@ instance Show1 Suit where
 newtype Rank = Rank Int
     deriving (Eq, Ord)
 
+unrank (Rank i) = i
+
 instance Show1 Rank where
     show1 (Rank 8) = "T"
     show1 (Rank 9) = "J"
@@ -78,6 +80,10 @@ newHand cards =
 getSuit :: Hand -> Suit -> [Rank]
 getSuit (Hand ss) i = ss ! fromEnum i
 
+playCardH (Hand ss) (Card r s) = Hand $ ss // [(si, newSuit)]
+    where newSuit = delete r $ ss ! si
+          si = fromEnum s
+
 newtype Deal = Deal (Array Int Hand)
     deriving (Eq)
     
@@ -87,8 +93,10 @@ instance Show Deal where
             in intercalate ", " . zipWith showHand ["north", "east", "south", "west"] $ elems hs
 
 newDeal d = Deal . listArray (0, 3) $ newHand <$> chunksOf 13 d
-getHand :: Deal -> Direction -> Hand
 getHand (Deal arr) i = arr ! fromEnum i
+
+playCardD :: Deal -> Direction -> Card -> Deal
+playCardD (Deal hs) i c = Deal $ hs // [(fromEnum i, playCardH (hs ! fromEnum i) c)]
 
 randDealM :: (RandomGen g) => Rand g Deal
 randDealM = liftM newDeal $ randDeckM
