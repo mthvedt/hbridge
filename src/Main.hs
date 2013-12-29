@@ -13,7 +13,7 @@ main = do
         dds = S.initDDState d (H.Trump H.Heart) H.North
     print $ dds
     iterateM 52 playACard dds
-    return ()
+    Solver.Generic.playGame dds
     where playACard x = do
             let c = head $ S.candidatePlays x
                 r = S.playCardS x c

@@ -69,16 +69,18 @@ scoref f t pos
 minimax :: (GameTree p m s k) => HashTable q k s -> p -> ST q s
 minimax = scoref $ \t pos -> liftM (if player pos then maximum else minimum) $ mapM (minimax t) $ children pos
 
-solveWithM :: (GameTree p m s k) => (HashTable q k s -> p -> ST q s) -> HashTable q k s -> p -> ST q (m, s)
+solveWithM :: (GameTree p m s k) => (HashTable q k s -> p -> ST q s) -> HashTable q k s -> p -> ST q (p, m, s)
 solveWithM solvef t pos = do
     solutions <- mapM (solvef t) $ children pos
-    return $ (if player pos then maximumBy else minimumBy) (compare `on` snd) $ zip (map fst $ moves pos) solutions
+    return $ (if player pos then maximumBy else minimumBy) (compare `on` (\(_, _, x) -> x))
+        $ zipWith (\(m, p) s -> (p, m, s)) (moves pos) solutions
 
-runSolveWith :: (GameTree p m s k) => (forall q. (HashTable q k s -> p -> ST q s)) -> p -> (m, s)
+runSolveWith :: (GameTree p m s k) => (forall q. (HashTable q k s -> p -> ST q s)) -> p -> (p, m, s)
 runSolveWith solvef pos = runST $ do
     t <- HST.new
     solveWithM solvef t pos
 
+playGame :: (GameTree p m s k, Show p, Show m, Show s) => p -> IO ()
 playGame pos =
     if isFinal pos
     then do
@@ -86,9 +88,9 @@ playGame pos =
         putStrLn $ "Final score: " ++ show (score pos)
     else do
         -- let (m, s) = solveWith minimax pos
-        let (m, s) = runSolveWith minimax pos
+        let (p, m, s) = runSolveWith minimax pos
         putStrLn $ "Position: " ++ show pos
         putStrLn $ "Move: " ++ show m
         -- putStrLn $ "Prinicpal variation: " ++ show ms
         -- putStrLn $ "Predicted score: " ++ show s
-        playGame $ move pos m
+        playGame $ p

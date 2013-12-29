@@ -8,18 +8,26 @@ import Data.List.Split
 import Data.Functor
 import Data.List
 import Data.Array
+import Data.Hashable
 
 data Suit = Club | Diamond | Heart | Spade
     deriving (Show, Enum, Eq, Ord)
+    
+instance Hashable Suit where
+    hashWithSalt i = hashWithSalt i . fromEnum
 
 data Direction = North | East | South | West
     deriving (Show, Enum, Eq, Ord)
-
-data Side = NorthSouth | EastWest
-    deriving (Show, Enum, Eq, Ord)
+    
+instance Hashable Direction where
+    hashWithSalt i = hashWithSalt i . fromEnum
 
 rotate :: Direction -> Direction
 rotate x = toEnum $ (fromEnum x + 1) `mod` 4
+
+data Side = NorthSouth | EastWest
+    deriving (Show, Enum, Eq, Ord)
+    
 pair :: Direction -> Side
 pair x = toEnum $ fromEnum x `mod` 2
 
@@ -45,8 +53,15 @@ instance Show1 Rank where
     show1 (Rank 12) = "A"
     show1 (Rank x) = show $ x + 2
 
+instance Hashable Rank where
+    hashWithSalt i = hashWithSalt i . unrank
+
 data Strain = Trump Suit | Notrump
     deriving (Show, Eq, Ord)
+    
+instance Hashable Strain where
+    hashWithSalt i (Trump s) = hashWithSalt i s
+    hashWithSalt i _ = hashWithSalt i (4 :: Int)
 
 instance Show1 Strain where
     show1 Notrump = "N"
@@ -60,6 +75,9 @@ instance Show Bid where
     
 data Card = Card {rank :: Rank, suit :: Suit}
     deriving (Eq)
+    
+instance Hashable Card where
+    hashWithSalt i (Card r s) = hashWithSalt i (r, s)
 
 instance Ord Card where
    compare (Card r1 s1) (Card r2 s2)
@@ -76,6 +94,9 @@ randDeckM = shuffleM fulldeck
 
 newtype Hand = Hand (Array Int [Rank])
     deriving (Eq)
+
+instance Hashable Hand where
+    hashWithSalt i (Hand x) = hashWithSalt i $ elems x
 
 instance Show Hand where
     show (Hand ss) =
@@ -99,6 +120,9 @@ instance Show Deal where
     show (Deal hs) =
         let showHand n h = n ++ ": " ++ show h
             in intercalate ", " . zipWith showHand ["north", "east", "south", "west"] $ elems hs
+
+instance Hashable Deal where
+    hashWithSalt i (Deal x) = hashWithSalt i $ elems x
 
 newDeal d = Deal . listArray (0, 3) $ newHand <$> chunksOf 13 d
 getHand (Deal arr) i = arr ! fromEnum i

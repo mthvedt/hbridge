@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Solver where
 import Hand
 import Control.Monad.State
@@ -6,6 +7,7 @@ import Data.Functor
 import Data.Array
 import Solver.Generic
 import Data.Maybe
+import Data.Hashable
 
 candidatePlaysH hand strain =
     concat $ map (\s -> map (\c -> Card c s) $ getSuit hand s) suits
@@ -37,10 +39,9 @@ compareCards Notrump (Card r1 s1) (Card r2 s2)
 compareCardsM strain c1 (Just c2) = compareCards strain c1 c2
 compareCardsM strain c1 Nothing = True
 
-tryResolve (DDState d t hs hp hc 4 tc) =
-    DDState d t hs Nothing Nothing 0 $ tc + 1 - (fromEnum . pair $ fromJust hp)
-
-tryResolve x = x
+tryResolve dds@(DDState d t hs hp hc pc tc)
+    | pc `mod` 4 == 0 = DDState d t hs Nothing Nothing pc $ tc + 1 - (fromEnum . pair $ fromJust hp)
+    | otherwise = dds
 
 playCardS (DDState d t hs hp hc pc ns) card =
     -- todo: resolve trick
@@ -48,6 +49,19 @@ playCardS (DDState d t hs hp hc pc ns) card =
     where winner = compareCardsM t card hc
           nhc = if winner then Just card else hc
           nhp = if winner then Just hs else hp
+
+instance Hashable DDState where
+    hashWithSalt i (DDState a b c d e f g) = hashWithSalt i (a, b, c, d, e, f, g)
+
+instance GameTree DDState Card Int DDState where
+    key = id
+    player d = case pair $ hotseat d of
+        NorthSouth -> True
+        EastWest -> False
+    score = nsTricks
+    isFinal = (== 52) . playCount
+    moves dds = map movef $ candidatePlays dds
+        where movef play = (play, playCardS dds play)
 
 data DDLine = DDLine {state :: DDState, plays :: [Card]}
     deriving (Eq, Show)
