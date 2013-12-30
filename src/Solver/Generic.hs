@@ -23,6 +23,7 @@ class (Eq k, Hashable k, Num s, Ord s) => GameTree p m s k | p -> m s k where
     -- The goal of the True player is to maximize score, the False player to minimze it.
     score :: p -> s
     -- True if the game is over.
+    -- TODO nuke
     isFinal :: p -> Bool
     -- Given a position, returns the (move, position) pairs reachable.
     -- Note that the GameTree typeclass doesn't establish a behavior for the move type.
@@ -69,7 +70,6 @@ scoref f t pos
 minimax :: (GameTree p m s k) => HashTable q k s -> p -> ST q s
 minimax = scoref $ \t pos -> liftM (if player pos then maximum else minimum) $ mapM (minimax t) $ children pos
 
-solveWithM :: (GameTree p m s k) => (HashTable q k s -> p -> ST q s) -> HashTable q k s -> p -> ST q (p, m, s)
 solveWithM solvef t pos = do
     solutions <- mapM (solvef t) $ children pos
     return $ (if player pos then maximumBy else minimumBy) (compare `on` (\(_, _, x) -> x))
@@ -80,16 +80,26 @@ runSolveWith solvef pos = runST $ do
     t <- HST.new
     solveWithM solvef t pos
 
-printPlayGame :: (GameTree p m s k, Show p, Show m, Show s) => p -> IO ()
-printPlayGame pos =
-    if isFinal pos
-    then do
-        putStrLn $ "Final position:\n" ++ show pos
-        putStrLn $ "Final score: " ++ show (score pos)
-    else do
-        let (p, m, s) = runSolveWith minimax pos
-        putStrLn $ "Position:\n" ++ show pos
-        putStrLn $ "Move: " ++ show m
-        -- putStrLn $ "Prinicpal variation: " ++ show ms
-        -- putStrLn $ "Predicted score: " ++ show s
-        printPlayGame $ p
+solveLineM solvef t pos = do
+    (pos2, move, s) <- solveWithM solvef t pos
+    let pm = (pos2, move)
+    if isFinal pos2
+    then return ([pm], s)
+    else do (pms, s) <- solveLineM solvef t pos2
+            return (pm:pms, s)
+
+runSolveLine :: (GameTree p m s k) => (forall q. (HashTable q k s -> p -> ST q s)) -> p -> ([(p, m)], s)
+runSolveLine solvef pos = runST $ do
+    t <- HST.new
+    solveLineM solvef t pos
+
+printPosMove _ (p, m) = do
+    putStrLn $ "Move: " ++ show m
+    print p
+
+printLine :: (GameTree p m s k, Show p, Show m, Show s) => p -> IO ()
+printLine pos = do
+    putStrLn $ show pos ++ "\n"
+    let (pms, score) = runSolveLine minimax pos
+    foldM printPosMove () pms
+    putStrLn $ "Final score: " ++ show score

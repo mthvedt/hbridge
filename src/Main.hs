@@ -12,16 +12,8 @@ main = do
     let d = Rand.evalRand H.randDealM $ Rand.mkStdGen 0
         dds = S.initDDState d (H.Trump H.Heart) H.North
     -- print dds
-    -- iterateM 52 playACard dds
-    Solver.Generic.printPlayGame dds
-    where playACard x = do
-            let c = head $ S.candidatePlays x
-                r = S.playCardS x c
-            print c
-            print r
-            return r
-          iterateM 0 f x = return x
-          iterateM n f x = f x >>= iterateM (n - 1) f
+    -- Solver.Generic.tersePrintPlayGame dds
+    Solver.Generic.printLine dds
     -- putStrLn $ show $ B.hcpCountDeal B.gorenHCP d
     -- putStrLn $ show $ S.candidatePlays (H.getHand d 1) H.Heart
     -- putStrLn $ show $ S.initDDLine d (H.Trump H.Heart) H.North

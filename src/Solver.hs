@@ -24,9 +24,9 @@ data DDState = DDState
     deriving (Eq)
 
 instance Show DDState where
-    show (DDState d t hs hp hc pc ns) = intercalate "\n" $ combineBlocks [[info, north, none], [east, center, west], [none, south, none]]
+    show (DDState d t hs hp hc pc ns) = intercalate "\n" $ combineBlocks [[info, north, none], [west, center, east], [none, south, none]]
         where none = blockOut [[]]
-              info = blockOut [[]]
+              info = blockOut ["Trump " ++ show1 t, "NS " ++ show ns]
               center = blockOut [[]]
               [north, east, south, west] = handBlocks <$> getHands d
 
@@ -53,7 +53,6 @@ tryResolve dds@(DDState d t hs hp hc pc tc)
     | otherwise = dds
 
 playCardS (DDState d t hs hp hc pc ns) card =
-    -- todo: resolve trick
     tryResolve $ DDState (playCardD d hs card) t (rotate hs) nhp nhc (pc + 1) ns
     where winner = compareCardsM t card hc
           nhc = if winner then Just card else hc
@@ -71,10 +70,3 @@ instance GameTree DDState Card Int DDState where
     isFinal = (== 52) . playCount
     moves dds = map movef $ candidatePlays dds
         where movef play = (play, playCardS dds play)
-
-data DDLine = DDLine {state :: DDState, plays :: [Card]}
-    deriving (Eq, Show)
-
-initDDLine deal trump declarer = DDLine (DDState deal trump declarer Nothing Nothing 0 0) []
-
--- data SolverState = SolverState {nodeCount :: Int}

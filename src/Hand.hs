@@ -11,14 +11,26 @@ import Data.Maybe
 import Data.Array
 import Data.Hashable
 
+class Show1 x where
+    show1 :: x -> [Char]
+
 data Suit = Club | Diamond | Heart | Spade
     deriving (Show, Enum, Eq, Ord)
+
+instance Show1 Suit where 
+    show1 Club = "♣"
+    show1 Diamond = "♢"
+    show1 Heart = "♡"
+    show1 Spade = "♠"
     
 instance Hashable Suit where
     hashWithSalt i = hashWithSalt i . fromEnum
 
 data Direction = North | East | South | West
     deriving (Show, Enum, Eq, Ord)
+
+instance Show1 Direction where
+    show1 x = [head $ show x]
     
 instance Hashable Direction where
     hashWithSalt i = hashWithSalt i . fromEnum
@@ -31,15 +43,6 @@ data Side = NorthSouth | EastWest
     
 pair :: Direction -> Side
 pair x = toEnum $ fromEnum x `mod` 2
-
-class Show1 x where
-    show1 :: x -> [Char]
-
-instance Show1 Suit where 
-    show1 Club = "c"
-    show1 Diamond = "d"
-    show1 Heart = "h"
-    show1 Spade = "s"
 
 newtype Rank = Rank Int
     deriving (Eq, Ord)
@@ -59,13 +62,13 @@ instance Hashable Rank where
 
 data Strain = Trump Suit | Notrump
     deriving (Show, Eq, Ord)
-    
+
 instance Hashable Strain where
     hashWithSalt i (Trump s) = hashWithSalt i s
     hashWithSalt i _ = hashWithSalt i (4 :: Int)
 
 instance Show1 Strain where
-    show1 Notrump = "N"
+    show1 Notrump = "n"
     show1 (Trump s) = show1 s
 
 data Bid = Bid {level :: Int, strain :: Strain}
@@ -87,7 +90,7 @@ instance Ord Card where
         | otherwise = EQ
 
 instance Show Card where
-    show (Card r s) = show1 r ++ show1 s
+    show (Card r s) = show1 s ++ show1 r
 
 fulldeck = [Card (Rank v) s | v <- [0 .. 12], s <- [Club ..]]
 randDeckM :: (RandomGen g) => Rand g [Card]
@@ -108,9 +111,9 @@ pad i p (c:cs) = c:(pad (i - 1) p cs)
 pad i p [] = p:(pad (i - 1) p [])
 
 type Block = [String]
-blockOut :: Block -> Block
+blockOut :: [String] -> Block
 
-blockOut = fmap (pad 14 ' ') . pad 4 []
+blockOut x = pad 14 ' ' <$> pad 4 "" x
 handBlocks = blockOut . handBlocks1
 
 combineBlocksRow :: [Block] -> Block
