@@ -9,11 +9,13 @@ import Solver.Generic
 import Data.Maybe
 import Data.Hashable
 
-candidatePlaysH hand strain =
-    concat $ map (\s -> map (\c -> Card c s) $ getSuit hand s) suits
-    where suits = case strain of
-            (Trump trump) -> (trump:(filter (trump /=) $ reverse [Club ..]))
-            Notrump -> reverse [Club ..]
+candidatePlaysH hand msuit =
+    case concat $ map (\s -> map (\c -> Card c s) $ getSuit hand s) suits of
+        [] -> candidatePlaysH hand Nothing
+        x -> x
+    where suits = case msuit of
+            (Just suit) -> [suit]
+            Nothing -> reverse [Club ..]
 
 data DDState = DDState 
     {deal :: Deal, trump :: Strain,
@@ -22,10 +24,10 @@ data DDState = DDState
     deriving (Eq, Show)
 
 initDDState d trump declarer = DDState d trump declarer Nothing Nothing 0 0
-candidatePlays state = candidatePlaysH (getHand d h) t
+candidatePlays state = candidatePlaysH (getHand d h) c
     where d = deal state
           h = hotseat state
-          t = trump state
+          c = suit `liftM` highCard state
 
 compareCards (Trump trump) (Card r1 s1) (Card r2 s2)
     | s1 == s2 = r1 > r2
@@ -40,7 +42,7 @@ compareCardsM strain c1 (Just c2) = compareCards strain c1 c2
 compareCardsM strain c1 Nothing = True
 
 tryResolve dds@(DDState d t hs hp hc pc tc)
-    | pc `mod` 4 == 0 = DDState d t hs Nothing Nothing pc $ tc + 1 - (fromEnum . pair $ fromJust hp)
+    | pc `mod` 4 == 0 = DDState d t (fromJust hp) Nothing Nothing pc $ tc + 1 - (fromEnum . pair $ fromJust hp)
     | otherwise = dds
 
 playCardS (DDState d t hs hp hc pc ns) card =

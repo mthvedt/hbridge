@@ -80,8 +80,8 @@ runSolveWith solvef pos = runST $ do
     t <- HST.new
     solveWithM solvef t pos
 
-playGame :: (GameTree p m s k, Show p, Show m, Show s) => p -> IO ()
-playGame pos =
+printPlayGame :: (GameTree p m s k, Show p, Show m, Show s) => p -> IO ()
+printPlayGame pos =
     if isFinal pos
     then do
         putStrLn $ "Final position: " ++ show pos
@@ -93,4 +93,4 @@ playGame pos =
         putStrLn $ "Move: " ++ show m
         -- putStrLn $ "Prinicpal variation: " ++ show ms
         -- putStrLn $ "Predicted score: " ++ show s
-        playGame $ p
+        printPlayGame $ p
