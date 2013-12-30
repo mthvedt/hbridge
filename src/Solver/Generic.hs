@@ -84,12 +84,11 @@ printPlayGame :: (GameTree p m s k, Show p, Show m, Show s) => p -> IO ()
 printPlayGame pos =
     if isFinal pos
     then do
-        putStrLn $ "Final position: " ++ show pos
+        putStrLn $ "Final position:\n" ++ show pos
         putStrLn $ "Final score: " ++ show (score pos)
     else do
-        -- let (m, s) = solveWith minimax pos
         let (p, m, s) = runSolveWith minimax pos
-        putStrLn $ "Position: " ++ show pos
+        putStrLn $ "Position:\n" ++ show pos
         putStrLn $ "Move: " ++ show m
         -- putStrLn $ "Prinicpal variation: " ++ show ms
         -- putStrLn $ "Predicted score: " ++ show s

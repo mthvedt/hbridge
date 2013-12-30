@@ -21,7 +21,14 @@ data DDState = DDState
     {deal :: Deal, trump :: Strain,
     hotseat :: Direction, highPlayer :: Maybe Direction, highCard :: Maybe Card, playCount :: Int,
     nsTricks :: Int}
-    deriving (Eq, Show)
+    deriving (Eq)
+
+instance Show DDState where
+    show (DDState d t hs hp hc pc ns) = intercalate "\n" $ combineBlocks [[info, north, none], [east, center, west], [none, south, none]]
+        where none = blockOut [[]]
+              info = blockOut [[]]
+              center = blockOut [[]]
+              [north, east, south, west] = handBlocks <$> getHands d
 
 initDDState d trump declarer = DDState d trump declarer Nothing Nothing 0 0
 candidatePlays state = candidatePlaysH (getHand d h) c

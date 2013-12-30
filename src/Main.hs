@@ -11,7 +11,7 @@ main :: IO ()
 main = do
     let d = Rand.evalRand H.randDealM $ Rand.mkStdGen 0
         dds = S.initDDState d (H.Trump H.Heart) H.North
-    print $ dds
+    -- print dds
     -- iterateM 52 playACard dds
     Solver.Generic.printPlayGame dds
     where playACard x = do

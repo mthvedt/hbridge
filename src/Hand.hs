@@ -7,6 +7,7 @@ import Control.Monad.State
 import Data.List.Split
 import Data.Functor
 import Data.List
+import Data.Maybe
 import Data.Array
 import Data.Hashable
 
@@ -98,10 +99,28 @@ newtype Hand = Hand (Array Int [Rank])
 instance Hashable Hand where
     hashWithSalt i (Hand x) = hashWithSalt i $ elems x
 
+handBlocks1 (Hand ss) =
+    let showSuit n s = foldl (++) (show1 n) . map show1 . reverse $ sort s
+        in zipWith showSuit [Club ..] $ elems ss
+
+pad 0 p xs = xs
+pad i p (c:cs) = c:(pad (i - 1) p cs)
+pad i p [] = p:(pad (i - 1) p [])
+
+type Block = [String]
+blockOut :: Block -> Block
+
+blockOut = fmap (pad 14 ' ') . pad 4 []
+handBlocks = blockOut . handBlocks1
+
+combineBlocksRow :: [Block] -> Block
+combineBlocksRow = foldl (zipWith (++)) $ repeat []
+
+combineBlocks :: [[Block]] -> Block
+combineBlocks = concat . fmap combineBlocksRow
+
 instance Show Hand where
-    show (Hand ss) =
-        let showSuit n s = foldl (++) (show1 n) . map show1 . reverse $ sort s
-            in unwords . zipWith showSuit [Club ..] $ elems ss
+    show = unwords . handBlocks1
 
 newHand cards =
     Hand . listArray (0, 3) $ reverse . sort . map rank <$> map (\x -> filter ((==) x . suit) cards) [Club ..]
@@ -126,6 +145,7 @@ instance Hashable Deal where
 
 newDeal d = Deal . listArray (0, 3) $ newHand <$> chunksOf 13 d
 getHand (Deal arr) i = arr ! fromEnum i
+getHands (Deal arr) = elems arr
 
 playCardD :: Deal -> Direction -> Card -> Deal
 playCardD (Deal hs) i c = Deal $ hs // [(fromEnum i, playCardH (hs ! fromEnum i) c)]
