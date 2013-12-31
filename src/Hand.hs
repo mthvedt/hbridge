@@ -35,12 +35,12 @@ instance Show1 Direction where
 instance Hashable Direction where
     hashWithSalt i = hashWithSalt i . fromEnum
 
-rotate :: Direction -> Direction
-rotate x = toEnum $ (fromEnum x + 1) `mod` 4
+rotate :: (Enum e) => Int -> e -> e
+rotate i x = toEnum $ (fromEnum x + i) `mod` 4
 
 data Side = NorthSouth | EastWest
     deriving (Show, Enum, Eq, Ord)
-    
+
 pair :: Direction -> Side
 pair x = toEnum $ fromEnum x `mod` 2
 
@@ -117,10 +117,10 @@ blockOut x = pad 14 ' ' <$> pad 4 "" x
 handBlocks = blockOut . handBlocks1
 
 combineBlocksRow :: [Block] -> Block
-combineBlocksRow = foldl (zipWith (++)) $ repeat []
+combineBlocksRow = foldl (zipWith (\x y -> x ++ " " ++ y)) $ repeat []
 
 combineBlocks :: [[Block]] -> Block
-combineBlocks = concat . fmap combineBlocksRow
+combineBlocks = intercalate [""] . fmap combineBlocksRow
 
 instance Show Hand where
     show = unwords . handBlocks1

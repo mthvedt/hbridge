@@ -35,6 +35,8 @@ candidatePlays state = candidatePlaysH (getHand d h) c
           h = hotseat state
           c = suit `liftM` highCard state
 
+-- card 1 is the current high card, card 2 is the played card
+-- true if the current high card is higher. order matters
 compareCards (Trump trump) (Card r1 s1) (Card r2 s2)
     | s1 == s2 = r1 > r2
     | trump == s2 = False
@@ -44,18 +46,18 @@ compareCards Notrump (Card r1 s1) (Card r2 s2)
     | s1 == s2 = r1 > r2
     | otherwise = True
 
-compareCardsM strain c1 (Just c2) = compareCards strain c1 c2
-compareCardsM strain c1 Nothing = True
+compareCardsM strain (Just c1) c2 = compareCards strain c1 c2
+compareCardsM strain Nothing c2 = False
 
 tryResolve dds@(DDState d t hs hp hc pc tc)
     | pc `mod` 4 == 0 = DDState d t (fromJust hp) hp Nothing pc $ tc + 1 - (fromEnum . pair $ fromJust hp)
     | otherwise = dds
 
 playCardS (DDState d t hs hp hc pc ns) card =
-    tryResolve $ DDState (playCardD d hs card) t (rotate hs) nhp nhc (pc + 1) ns
-    where winner = compareCardsM t card hc
-          nhc = if winner then Just card else hc
-          nhp = if winner then Just hs else hp
+    tryResolve $ DDState (playCardD d hs card) t (rotate 1 hs) nhp nhc (pc + 1) ns
+    where winner = compareCardsM t hc card
+          nhc = if winner then hc else Just card
+          nhp = if winner then hp else Just hs
 
 instance Hashable DDState where
     hashWithSalt i (DDState a b c d e f g) = hashWithSalt i (a, b, c, d, e, f, g)
@@ -70,19 +72,21 @@ instance GameTree DDState Card Int DDState where
     moves dds = map movef $ candidatePlays dds
         where movef play = (play, playCardS dds play)
 
+printStart p = blockOutState p $ blockOut [[]]
+
 -- A trick: a set of 4 moves
 printTrick pms =
     blockOutState finalp center
     where [firstp, _, _, finalp] = fst <$> pms
-          firstMover = hotseat firstp
+          firstMover = rotate (-1) $ hotseat firstp
           winner = fromJust $ highPlayer finalp
           movesByDir = take 4 . drop (4 - fromEnum firstMover) . cycle $ show . snd <$> pms
           moveMarker x i
-              | i == winner = "*" ++ x ++ "*"
               | i == firstMover = "<" ++ x ++ ">"
+              | i == winner = "*" ++ x ++ "*"
               | otherwise = " " ++ x ++ " "
           [mn, me, ms, mw] = zipWith moveMarker movesByDir [North ..]
           moveStrs = [[], "     " ++ mn ++ "     ", unwords [mw, ms, me], []]
           center = blockOut moveStrs
 
-showLine line = intercalate "\n" $ printTrick <$> chunksOf 4 line
+showLine initp line = intercalate ("\n" ++ replicate 44 '=' ++ "\n") $ (printStart initp):(printTrick <$> chunksOf 4 line)
