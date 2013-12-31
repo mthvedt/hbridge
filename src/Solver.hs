@@ -3,8 +3,9 @@ module Solver where
 import Hand
 import Control.Monad.State
 import Data.List
+import Data.List.Split
 import Data.Functor
-import Data.Array
+import Data.Array.IArray
 import Solver.Generic
 import Data.Maybe
 import Data.Hashable
@@ -21,14 +22,12 @@ data DDState = DDState
     {deal :: Deal, trump :: Strain,
     hotseat :: Direction, highPlayer :: Maybe Direction, highCard :: Maybe Card, playCount :: Int,
     nsTricks :: Int}
-    deriving (Eq)
+    deriving (Eq, Show)
 
-instance Show DDState where
-    show (DDState d t hs hp hc pc ns) = intercalate "\n" $ combineBlocks [[info, north, none], [west, center, east], [none, south, none]]
-        where none = blockOut [[]]
-              info = blockOut ["Trump " ++ show1 t, "NS " ++ show ns]
-              center = blockOut [[]]
-              [north, east, south, west] = handBlocks <$> getHands d
+blockOutState (DDState d t hs hp hc pc ns) center = intercalate "\n" $ combineBlocks [[info, north, none], [west, center, east], [none, south, none]]
+    where none = blockOut [[]]
+          info = blockOut ["Trump " ++ show1 t, "NS " ++ show ns]
+          [north, east, south, west] = handBlocks <$> getHands d
 
 initDDState d trump declarer = DDState d trump declarer Nothing Nothing 0 0
 candidatePlays state = candidatePlaysH (getHand d h) c
@@ -49,7 +48,7 @@ compareCardsM strain c1 (Just c2) = compareCards strain c1 c2
 compareCardsM strain c1 Nothing = True
 
 tryResolve dds@(DDState d t hs hp hc pc tc)
-    | pc `mod` 4 == 0 = DDState d t (fromJust hp) Nothing Nothing pc $ tc + 1 - (fromEnum . pair $ fromJust hp)
+    | pc `mod` 4 == 0 = DDState d t (fromJust hp) hp Nothing pc $ tc + 1 - (fromEnum . pair $ fromJust hp)
     | otherwise = dds
 
 playCardS (DDState d t hs hp hc pc ns) card =
@@ -70,3 +69,20 @@ instance GameTree DDState Card Int DDState where
     isFinal = (== 52) . playCount
     moves dds = map movef $ candidatePlays dds
         where movef play = (play, playCardS dds play)
+
+-- A trick: a set of 4 moves
+printTrick pms =
+    blockOutState finalp center
+    where [firstp, _, _, finalp] = fst <$> pms
+          firstMover = hotseat firstp
+          winner = fromJust $ highPlayer finalp
+          movesByDir = take 4 . drop (4 - fromEnum firstMover) . cycle $ show . snd <$> pms
+          moveMarker x i
+              | i == winner = "*" ++ x ++ "*"
+              | i == firstMover = "<" ++ x ++ ">"
+              | otherwise = " " ++ x ++ " "
+          [mn, me, ms, mw] = zipWith moveMarker movesByDir [North ..]
+          moveStrs = [[], "     " ++ mn ++ "     ", unwords [mw, ms, me], []]
+          center = blockOut moveStrs
+
+showLine line = intercalate "\n" $ printTrick <$> chunksOf 4 line

@@ -18,11 +18,11 @@ data Suit = Club | Diamond | Heart | Spade
     deriving (Show, Enum, Eq, Ord)
 
 instance Show1 Suit where 
-    show1 Club = "♣"
-    show1 Diamond = "♢"
-    show1 Heart = "♡"
-    show1 Spade = "♠"
-    
+    show1 Club = "c" -- "♣"
+    show1 Diamond = "d" -- "♢"
+    show1 Heart = "h" -- "♡"
+    show1 Spade = "s" -- "♠"
+
 instance Hashable Suit where
     hashWithSalt i = hashWithSalt i . fromEnum
 
@@ -31,7 +31,7 @@ data Direction = North | East | South | West
 
 instance Show1 Direction where
     show1 x = [head $ show x]
-    
+
 instance Hashable Direction where
     hashWithSalt i = hashWithSalt i . fromEnum
 
@@ -76,10 +76,10 @@ data Bid = Bid {level :: Int, strain :: Strain}
 
 instance Show Bid where
     show (Bid l s) = show l ++ show1 s
-    
+
 data Card = Card {rank :: Rank, suit :: Suit}
     deriving (Eq)
-    
+
 instance Hashable Card where
     hashWithSalt i (Card r s) = hashWithSalt i (r, s)
 
@@ -137,7 +137,7 @@ playCardH (Hand ss) (Card r s) = Hand $ ss // [(si, newSuit)]
 
 newtype Deal = Deal (Array Int Hand)
     deriving (Eq)
-    
+
 instance Show Deal where
     show (Deal hs) =
         let showHand n h = n ++ ": " ++ show h

@@ -23,8 +23,8 @@ class (Eq k, Hashable k, Num s, Ord s) => GameTree p m s k | p -> m s k where
     -- The goal of the True player is to maximize score, the False player to minimze it.
     score :: p -> s
     -- True if the game is over.
-    -- TODO nuke
     isFinal :: p -> Bool
+    isFinal = null . moves
     -- Given a position, returns the (move, position) pairs reachable.
     -- Note that the GameTree typeclass doesn't establish a behavior for the move type.
     moves :: p -> [(m, p)]
