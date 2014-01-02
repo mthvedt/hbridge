@@ -10,7 +10,7 @@ import qualified Solver.Generic
 main :: IO ()
 main = do
     let d = Rand.evalRand H.randDealM $ Rand.mkStdGen 0
-        dds = S.initDDState d (H.Trump H.Diamond) H.West
+        dds = S.initDDState d (H.Trump H.Heart) H.West
     -- print dds
     putStrLn . S.showLine dds . fst $ Solver.Generic.runSolveLine Solver.Generic.minimax dds
     -- putStrLn $ show $ B.hcpCountDeal B.gorenHCP d

@@ -63,7 +63,8 @@ scoref f t pos
         case mr of
             Just r -> return r
             Nothing -> do
-                let s = score pos
+                -- let s = score pos
+                s <- f t pos
                 H.insert t k s
                 return s
 

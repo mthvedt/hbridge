@@ -94,7 +94,7 @@ instance Show Card where
 
 fulldeck = [Card (Rank v) s | v <- [0 .. 12], s <- [Club ..]]
 randDeckM :: (RandomGen g) => Rand g [Card]
-randDeckM = shuffleM fulldeck
+randDeckM = take 24 `liftM` shuffleM fulldeck
 
 newtype Hand = Hand (Array Int [Rank])
     deriving (Eq)
@@ -104,7 +104,7 @@ instance Hashable Hand where
 
 handBlocks1 (Hand ss) =
     let showSuit n s = foldl (++) (show1 n) . map show1 . reverse $ sort s
-        in zipWith showSuit [Club ..] $ elems ss
+        in reverse . zipWith showSuit [Club ..] $ elems ss
 
 pad 0 p xs = xs
 pad i p (c:cs) = c:(pad (i - 1) p cs)
@@ -146,7 +146,7 @@ instance Show Deal where
 instance Hashable Deal where
     hashWithSalt i (Deal x) = hashWithSalt i $ elems x
 
-newDeal d = Deal . listArray (0, 3) $ newHand <$> chunksOf 13 d
+newDeal d = Deal . listArray (0, 3) $ newHand <$> chunksOf 6 d
 getHand (Deal arr) i = arr ! fromEnum i
 getHands (Deal arr) = elems arr
 
@@ -154,4 +154,4 @@ playCardD :: Deal -> Direction -> Card -> Deal
 playCardD (Deal hs) i c = Deal $ hs // [(fromEnum i, playCardH (hs ! fromEnum i) c)]
 
 randDealM :: (RandomGen g) => Rand g Deal
-randDealM = liftM newDeal $ randDeckM
+randDealM = newDeal `liftM` randDeckM
