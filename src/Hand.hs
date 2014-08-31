@@ -142,8 +142,21 @@ playCardH (Hand ss) (Card r s) = Hand $ ss // [(si, newSuit)]
     where newSuit = delete r $ ss ! si
           si = fromEnum s
 
+class (Show d) => IDeal d where
+    -- todo rename
+    getHand :: d -> Direction -> Hand
+    candidatePlaysD :: d -> Direction -> Suit -> [Int]
+    playCardD :: d -> Direction -> Suit -> Int -> Deal
+
 newtype Deal = Deal (Array Int Hand)
     deriving (Eq)
+
+instance IDeal Deal where
+    getHand (Deal hs) d = hs ! fromEnum d
+    playCardD (Deal hs) dir s i = Deal $ hs // [(fromEnum dir, playCardH (hs ! fromEnum dir) (Card (Rank i) s))]
+    candidatePlaysD d dir s = unrank <$> getSuit (getHand d dir) s
+
+getHands d = getHand d <$> [North ..]
 
 instance Show Deal where
     show (Deal hs) =
@@ -155,11 +168,6 @@ instance Hashable Deal where
 
 newPartialDeal i d = Deal . listArray (0, 3) $ newHand <$> chunksOf i d
 newDeal = newPartialDeal 13
-getHand (Deal arr) i = arr ! fromEnum i
-getHands (Deal arr) = elems arr
-
-playCardD :: Deal -> Direction -> Card -> Deal
-playCardD (Deal hs) i c = Deal $ hs // [(fromEnum i, playCardH (hs ! fromEnum i) c)]
 
 randPartialDealM i = newPartialDeal i `liftM` randPartialDeckM i
 randDealM :: (RandomGen g) => Rand g Deal

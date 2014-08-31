@@ -9,9 +9,9 @@ import Solver.Generic
 import Data.Maybe
 import Data.Hashable
 
-candidatePlaysH hand msuit =
-    case concat $ map (\s -> map (\c -> Card c s) $ getSuit hand s) suits of
-        [] -> candidatePlaysH hand Nothing
+candidatePlaysH deal dir msuit =
+    case concat $ map (\s -> map (\c -> Card (Rank c) s) $ candidatePlaysD deal dir s) suits of
+        [] -> candidatePlaysH deal dir Nothing
         x -> x
     where suits = case msuit of
             (Just suit) -> [suit]
@@ -32,7 +32,7 @@ initDDState d trump declarer = DDState d trump Nothing declarer Nothing Nothing 
     -- where c = foldr (++) $ map length $ concatMap getSuits $ getHands d
     where c = sum $ handCount <$> getHands d
 
-candidatePlays state = candidatePlaysH (getHand d h) c
+candidatePlays state = candidatePlaysH d h c
     where d = deal state
           h = hotseat state
           c = lead state
@@ -56,7 +56,7 @@ tryResolve dds@(DDState d t l hs hp hc pl tc)
     | otherwise = dds
 
 playCardS (DDState d t l hs hp hc pl ns) card@(Card cr cs) =
-    tryResolve $ DDState (playCardD d hs card) t nl (rotate 1 hs) nhp nhc (pl - 1) ns
+    tryResolve $ DDState (playCardD d hs cs (unrank cr)) t nl (rotate 1 hs) nhp nhc (pl - 1) ns
     where winner = compareCardsM t hc card
           nl = case l of
                 Just _ -> l
