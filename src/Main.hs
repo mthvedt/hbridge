@@ -9,14 +9,16 @@ import qualified Solver.Generic
 -- | The main entry point.
 main :: IO ()
 main = do
-    let d = Rand.evalRand H.randDealM $ Rand.mkStdGen 0
+    let d = Rand.evalRand (H.randPartialDealM 4) $ Rand.mkStdGen 0
         dds = S.initDDState d (H.Trump H.Heart) H.West
+    Solver.Generic.printLine dds
     -- print dds
-    putStrLn . S.showLine dds . fst $ Solver.Generic.runSolveLine Solver.Generic.minimax dds
+    putStrLn . S.showLine dds . fst $ Solver.Generic.minimaxLine dds
     -- putStrLn $ show $ B.hcpCountDeal B.gorenHCP d
     -- putStrLn $ show $ S.candidatePlays (H.getHand d 1) H.Heart
     -- putStrLn $ show $ S.initDDLine d (H.Trump H.Heart) H.North
-    -- let n = Nim True 101
+    -- let n = Solver.Generic.Nim True 69
+    -- Solver.Generic.printLine n
     --putStrLn $ show $ rank n
     --putStrLn $ show $ moves n
     -- playGame n

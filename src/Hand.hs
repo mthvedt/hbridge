@@ -1,9 +1,9 @@
 module Hand where
 import System.Random
 import System.Random.Shuffle
+import Control.Monad
 import Control.Monad.Random
 import Control.Monad.Random.Class
-import Control.Monad.State
 import Data.List.Split
 import Data.Functor
 import Data.List
@@ -17,7 +17,7 @@ class Show1 x where
 data Suit = Club | Diamond | Heart | Spade
     deriving (Show, Enum, Eq, Ord)
 
-instance Show1 Suit where 
+instance Show1 Suit where
     show1 Club = "c" -- "♣"
     show1 Diamond = "d" -- "♢"
     show1 Heart = "h" -- "♡"
@@ -92,9 +92,13 @@ instance Ord Card where
 instance Show Card where
     show (Card r s) = show1 s ++ show1 r
 
-fulldeck = [Card (Rank v) s | v <- [0 .. 12], s <- [Club ..]]
+partialDeck i = [Card (Rank v) s | v <- [(13 - i) .. 12], s <- [Club ..]]
+fulldeck = partialDeck 13
+randPartialDeckM i = do
+    d <- shuffleM $ partialDeck i
+    return $ take (i * 4) d
 randDeckM :: (RandomGen g) => Rand g [Card]
-randDeckM = take 24 `liftM` shuffleM fulldeck
+randDeckM = randPartialDeckM 13
 
 newtype Hand = Hand (Array Int [Rank])
     deriving (Eq)
@@ -131,6 +135,9 @@ newHand cards =
 getSuit :: Hand -> Suit -> [Rank]
 getSuit (Hand ss) i = ss ! fromEnum i
 
+handCount :: Hand -> Int
+handCount (Hand ss) = sum $ length <$> elems ss
+
 playCardH (Hand ss) (Card r s) = Hand $ ss // [(si, newSuit)]
     where newSuit = delete r $ ss ! si
           si = fromEnum s
@@ -146,12 +153,14 @@ instance Show Deal where
 instance Hashable Deal where
     hashWithSalt i (Deal x) = hashWithSalt i $ elems x
 
-newDeal d = Deal . listArray (0, 3) $ newHand <$> chunksOf 6 d
+newPartialDeal i d = Deal . listArray (0, 3) $ newHand <$> chunksOf i d
+newDeal = newPartialDeal 13
 getHand (Deal arr) i = arr ! fromEnum i
 getHands (Deal arr) = elems arr
 
 playCardD :: Deal -> Direction -> Card -> Deal
 playCardD (Deal hs) i c = Deal $ hs // [(fromEnum i, playCardH (hs ! fromEnum i) c)]
 
+randPartialDealM i = newPartialDeal i `liftM` randPartialDeckM i
 randDealM :: (RandomGen g) => Rand g Deal
-randDealM = newDeal `liftM` randDeckM
+randDealM = randPartialDealM 13

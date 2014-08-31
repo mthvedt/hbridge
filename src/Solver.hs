@@ -1,7 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Solver where
 import Hand
-import Control.Monad.State
 import Data.List
 import Data.List.Split
 import Data.Functor
@@ -18,9 +17,9 @@ candidatePlaysH hand msuit =
             (Just suit) -> [suit]
             Nothing -> reverse [Club ..]
 
-data DDState = DDState 
+data DDState = DDState
     {deal :: Deal, trump :: Strain, lead :: Maybe Suit,
-    hotseat :: Direction, highPlayer :: Maybe Direction, highCard :: Maybe Card, playCount :: Int,
+    hotseat :: Direction, highPlayer :: Maybe Direction, highCard :: Maybe Card, playsLeft :: Int,
     nsTricks :: Int}
     deriving (Eq, Show)
 
@@ -29,7 +28,10 @@ blockOutState (DDState d t l hs hp hc pc ns) center = intercalate "\n" $ combine
           info = blockOut ["Trump " ++ show1 t, "NS " ++ show ns]
           [north, east, south, west] = handBlocks <$> getHands d
 
-initDDState d trump declarer = DDState d trump Nothing declarer Nothing Nothing 0 0
+initDDState d trump declarer = DDState d trump Nothing declarer Nothing Nothing c 0
+    -- where c = foldr (++) $ map length $ concatMap getSuits $ getHands d
+    where c = sum $ handCount <$> getHands d
+
 candidatePlays state = candidatePlaysH (getHand d h) c
     where d = deal state
           h = hotseat state
@@ -49,12 +51,12 @@ compareCards Notrump (Card r1 s1) (Card r2 s2)
 compareCardsM strain (Just c1) c2 = compareCards strain c1 c2
 compareCardsM strain Nothing c2 = False
 
-tryResolve dds@(DDState d t l hs hp hc pc tc)
-    | pc `mod` 4 == 0 = DDState d t Nothing (fromJust hp) hp Nothing pc $ tc + 1 - (fromEnum . pair $ fromJust hp)
+tryResolve dds@(DDState d t l hs hp hc pl tc)
+    | pl `mod` 4 == 0 = DDState d t Nothing (fromJust hp) hp Nothing pl $ tc + 1 - (fromEnum . pair $ fromJust hp)
     | otherwise = dds
 
-playCardS (DDState d t l hs hp hc pc ns) card@(Card cr cs) =
-    tryResolve $ DDState (playCardD d hs card) t nl (rotate 1 hs) nhp nhc (pc + 1) ns
+playCardS (DDState d t l hs hp hc pl ns) card@(Card cr cs) =
+    tryResolve $ DDState (playCardD d hs card) t nl (rotate 1 hs) nhp nhc (pl - 1) ns
     where winner = compareCardsM t hc card
           nl = case l of
                 Just _ -> l
@@ -62,16 +64,20 @@ playCardS (DDState d t l hs hp hc pc ns) card@(Card cr cs) =
           nhc = if winner then hc else Just card
           nhp = if winner then hp else Just hs
 
-instance Hashable DDState where
-    hashWithSalt i (DDState d t l hs hp hc pc ns) = hashWithSalt i (d, t, l, hs, hc, ns)
+newtype GameTreeKey = GameTreeKey (Deal, Maybe Suit, Maybe Card, Int)
+    deriving (Eq)
 
-instance GameTree DDState Card Int DDState where
-    key = id
+instance Hashable GameTreeKey where
+    hashWithSalt i (GameTreeKey t) = hashWithSalt i t
+
+instance GameTree DDState Card Int GameTreeKey where
+    key (DDState d t l hs hp hc pl ns) = GameTreeKey (d, l, hc, ns)
     player d = case pair $ hotseat d of
         NorthSouth -> True
         EastWest -> False
     score = nsTricks
-    isFinal = (== 12) . playCount
+    -- TODO
+    isFinal = (== 0) . playsLeft
     moves dds = map movef $ candidatePlays dds
         where movef play = (play, playCardS dds play)
 

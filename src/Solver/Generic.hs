@@ -85,14 +85,17 @@ solveLineM solvef t pos = do
     (pos2, move, s) <- solveWithM solvef t pos
     let pm = (pos2, move)
     if isFinal pos2
-    then return ([pm], s)
-    else do (pms, s) <- solveLineM solvef t pos2
-            return (pm:pms, s)
+        then return ([pm], s)
+        else do (pms, s) <- solveLineM solvef t pos2
+                return (pm:pms, s)
 
 runSolveLine :: (GameTree p m s k) => (forall q. (HashTable q k s -> p -> ST q s)) -> p -> ([(p, m)], s)
 runSolveLine solvef pos = runST $ do
     t <- HST.new
     solveLineM solvef t pos
+
+minimaxLine :: (GameTree p m s k) => p -> ([(p, m)], s)
+minimaxLine = runSolveLine minimax
 
 printPosMove _ (p, m) = do
     putStrLn $ "Move: " ++ show m
@@ -100,7 +103,7 @@ printPosMove _ (p, m) = do
 
 printLine :: (GameTree p m s k, Show p, Show m, Show s) => p -> IO ()
 printLine pos = do
-    putStrLn $ show pos ++ "\n"
-    let (pms, score) = runSolveLine minimax pos
+    putStrLn $ show pos
+    let (pms, score) = minimaxLine pos
     foldM printPosMove () pms
     putStrLn $ "Final score: " ++ show score
