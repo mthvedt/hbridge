@@ -18,7 +18,7 @@ candidatePlaysH deal dir msuit =
             Nothing -> reverse [Club ..]
 
 data DDState = DDState
-    {deal :: Deal, trump :: Strain, lead :: Maybe Suit,
+    {deal :: FastDeal, trump :: Strain, lead :: Maybe Suit,
     hotseat :: Direction, highPlayer :: Maybe Direction, highCard :: Maybe Card, playsLeft :: Int,
     nsTricks :: Int}
     deriving (Eq, Show)
@@ -38,9 +38,9 @@ candidatePlays state = candidatePlaysH d h c
           c = lead state
 
 -- card 1 is the current high card, card 2 is the played card
--- true if the current high card is higher. order matters
+-- true if the current high card is equal or higher. order matters
 compareCards (Trump trump) (Card r1 s1) (Card r2 s2)
-    | s1 == s2 = r1 > r2
+    | s1 == s2 = r1 >= r2
     | trump == s2 = False
     | otherwise = True
 
@@ -64,7 +64,7 @@ playCardS (DDState d t l hs hp hc pl ns) card@(Card cr cs) =
           nhc = if winner then hc else Just card
           nhp = if winner then hp else Just hs
 
-newtype GameTreeKey = GameTreeKey (Deal, Maybe Suit, Maybe Card, Int)
+newtype GameTreeKey = GameTreeKey (FastDeal, Maybe Suit, Maybe Card, Int)
     deriving (Eq)
 
 instance Hashable GameTreeKey where
@@ -76,7 +76,6 @@ instance GameTree DDState Card Int GameTreeKey where
         NorthSouth -> True
         EastWest -> False
     score = nsTricks
-    -- TODO
     isFinal = (== 0) . playsLeft
     moves dds = map movef $ candidatePlays dds
         where movef play = (play, playCardS dds play)
@@ -98,4 +97,13 @@ printTrick pms =
           moveStrs = [[], "     " ++ mn ++ "     ", unwords [mw, ms, me], []]
           center = blockOut moveStrs
 
-showLine initp line = intercalate ("\n" ++ replicate 44 '=' ++ "\n") $ (printStart initp):(printTrick <$> chunksOf 4 line)
+-- TODO unshift cards
+reconstructLine :: [(DDState, Card)] -> [(DDState, Card)]
+reconstructLine [] = []
+reconstructLine ((p0, m0):pms) = (unshiftS p0, m0):(reconstructLine npms)
+    where npms = (\(p, m) -> (unshiftS p, (unshiftCard m0 m))) <$> pms
+          unshiftS (DDState d t l hs hp hc pc ns) =
+              DDState (unshiftD d m0) t l hs hp hc pc ns
+
+showLine :: DDState -> [(DDState, Card)] -> String
+showLine initp line = intercalate ("\n" ++ replicate 44 '=' ++ "\n") $ (printStart initp):(printTrick <$> chunksOf 4 (reconstructLine line))

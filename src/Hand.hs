@@ -142,11 +142,33 @@ playCardH (Hand ss) (Card r s) = Hand $ ss // [(si, newSuit)]
     where newSuit = delete r $ ss ! si
           si = fromEnum s
 
+-- all cards lower than r2 are shifted up
+shiftRank r2 r1 = Rank $ if ri1 < ri2 then ri1 + 1 else ri1
+    where ri1 = unrank r1
+          ri2 = unrank r2
+
+unshiftRank r2 r1 = Rank $ if ri1 <= ri2 then ri1 - 1 else ri1
+    where ri1 = unrank r1
+          ri2 = unrank r2
+
+unshiftCard (Card r2 s2) c1@(Card r1 s1) =
+    if s1 == s2 then Card (unshiftRank r2 r1) s1
+                else c1
+
+shiftCardH (Card r s) (Hand ss) = Hand $ ss // [(si, newSuit)]
+    where newSuit = shiftRank r <$> (delete r $ ss ! si)
+          si = fromEnum s
+
+unshiftCardH (Card r s) (Hand ss) = Hand $ ss // [(si, newSuit)]
+    where newSuit = unshiftRank r <$> ss ! si
+          si = fromEnum s
+
 class (Show d) => IDeal d where
     -- todo rename
     getHand :: d -> Direction -> Hand
     candidatePlaysD :: d -> Direction -> Suit -> [Int]
-    playCardD :: d -> Direction -> Suit -> Int -> Deal
+    playCardD :: d -> Direction -> Suit -> Int -> d
+    unshiftD :: d -> Card -> d
 
 newtype Deal = Deal (Array Int Hand)
     deriving (Eq)
@@ -155,6 +177,20 @@ instance IDeal Deal where
     getHand (Deal hs) d = hs ! fromEnum d
     playCardD (Deal hs) dir s i = Deal $ hs // [(fromEnum dir, playCardH (hs ! fromEnum dir) (Card (Rank i) s))]
     candidatePlaysD d dir s = unrank <$> getSuit (getHand d dir) s
+    unshiftD d _ = d
+
+newtype FastDeal = FastDeal (Array Int Hand)
+    deriving (Eq)
+
+instance IDeal FastDeal where
+    -- TODO: in semi-played FastDeals, getHand will have 'incorrect' results
+    getHand (FastDeal hs) d = hs ! fromEnum d
+    playCardD (FastDeal hs) dir s i = FastDeal $ shiftCardH c <$> hs // [(dirint, nh)]
+        where dirint = fromEnum dir
+              c = Card (Rank i) s
+              nh = playCardH (hs ! dirint) $ c
+    candidatePlaysD d dir s = unrank <$> getSuit (getHand d dir) s
+    unshiftD (FastDeal hs) card = FastDeal $ unshiftCardH card <$> hs
 
 getHands d = getHand d <$> [North ..]
 
@@ -163,12 +199,22 @@ instance Show Deal where
         let showHand n h = n ++ ": " ++ show h
             in intercalate ", " . zipWith showHand ["north", "east", "south", "west"] $ elems hs
 
+instance Show FastDeal where
+    show (FastDeal hs) =
+        let showHand n h = n ++ ": " ++ show h
+            in intercalate ", " . zipWith showHand ["north", "east", "south", "west"] $ elems hs
+
 instance Hashable Deal where
     hashWithSalt i (Deal x) = hashWithSalt i $ elems x
 
-newPartialDeal i d = Deal . listArray (0, 3) $ newHand <$> chunksOf i d
+instance Hashable FastDeal where
+    hashWithSalt i (FastDeal x) = hashWithSalt i $ elems x
+
+-- TODO polymorphic construction
+-- newPartialDeal i d = Deal . listArray (0, 3) $ newHand <$> chunksOf i d
+newPartialDeal i d = FastDeal . listArray (0, 3) $ newHand <$> chunksOf i d
 newDeal = newPartialDeal 13
 
 randPartialDealM i = newPartialDeal i `liftM` randPartialDeckM i
-randDealM :: (RandomGen g) => Rand g Deal
+randDealM :: (RandomGen g) => Rand g FastDeal
 randDealM = randPartialDealM 13
