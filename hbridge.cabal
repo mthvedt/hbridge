@@ -1,0 +1,40 @@
+name: hbridge
+version: 0.0.1
+cabal-version: >=1.8
+build-type: Simple
+license: AllRightsReserved
+license-file: ""
+description:
+data-dir: ""
+
+executable hbridge
+    build-depends:
+        hashable ==1.1.*,
+        hashtables ==1.1.*,
+        MonadRandom == 0.1.*,
+        random == 1.0.*,
+        random-shuffle == 0.0.*,
+        array == 0.4.*,
+        split == 0.2.*,
+        QuickCheck -any,
+        base -any
+    main-is: Main.hs
+    buildable: True
+    hs-source-dirs: src
+
+test-suite test-hbridge
+    build-depends:
+        hashable ==1.1.*,
+        hashtables ==1.1.*,
+        MonadRandom == 0.1.*,
+        random == 1.0.*,
+        random-shuffle == 0.0.*,
+        array == 0.4.*,
+        split == 0.2.*,
+        QuickCheck -any,
+        base -any
+    type: exitcode-stdio-1.0
+    main-is: Main.hs
+    buildable: True
+    cpp-options: -DMAIN_FUNCTION=testMain
+    hs-source-dirs: src
