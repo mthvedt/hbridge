@@ -10,14 +10,21 @@ printScore game =
        putStrLn . show $ score game
 
 -- TODO computer moves and such
-doInteractive :: (InteractiveGame p m s k) => p -> IO ()
-doInteractive p = if isFinal p
-   then printScore p
-   else do
-       putStrLn $ show p
-       i <- getLine
-       case acceptMove p i of
-           Just p2 -> doInteractive p2
-           Nothing -> do
-                   putStrLn "Invalid move!"
-                   doInteractive p
+doInteractive :: (Show p, Show m, InteractiveGame p m s k) => p -> IO ()
+doInteractive p
+    | isFinal p = printScore p
+-- Hard code player == east-west for now
+    | player p = do
+          putStrLn $ show p
+          let (p2, m) = head . fst $ minimaxLine p
+          putStr "My move: "
+          putStrLn $ show m
+          doInteractive p2
+    | otherwise = do
+        putStrLn $ show p
+        i <- getLine
+        case acceptMove p i of
+            Just p2 -> doInteractive p2
+            Nothing -> do
+                putStrLn "Invalid move!"
+                doInteractive p
