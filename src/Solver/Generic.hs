@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, RankNTypes #-}
+{-# LANGUAGE TypeFamilies, FlexibleContexts, RankNTypes #-}
 module Solver.Generic where
 import Data.List
 import Data.Function
@@ -15,24 +15,29 @@ import Data.Hashable
 -- k: a position key
 -- m: a move type
 -- s: a score type
-class (Eq k, Hashable k, Num s, Ord s) => GameTree p m s k | p -> m s k where
+class (Ord (Move p), Ord (Score p), Hashable (Key p), Eq (Key p)) => GameTree p where
+    type Move p :: *
+    type Score p :: *
+    type Key p :: *
     -- The key for this position.
     -- Two positions with the same key are considered identical
     -- (but can have different scores).
-    key :: p -> k
+    key :: p -> Key p
     player :: p -> Bool
     -- The goal of the True player is to maximize score, the False player to minimze it.
-    score :: p -> s
+    score :: p -> Score p
     -- True if the game is over.
     isFinal :: p -> Bool
     isFinal = null . moves
     -- Given a position, returns the (move, position) pairs reachable.
-    -- Note that the GameTree typeclass doesn't establish a behavior for the move type.
-    moves :: p -> [(m, p)]
+    moves :: p -> [(Move p, p)]
     children :: p -> [p]
     children p = map snd $ moves p
 
-movemap :: (GameTree p m s k, Ord m) => p -> Map.Map m p
+class ShowBig p where
+    showbig :: p -> String
+
+movemap :: (GameTree p) => p -> Map.Map (Move p) p
 movemap = Map.fromList . moves
 
 data Nim = Nim Bool Int
@@ -42,7 +47,10 @@ legal (Nim _ i) = i >= 0
 move (Nim p i) j = Nim (not p) (i - j)
 
 -- A test class for GameTree
-instance GameTree Nim Int Int Nim where
+instance GameTree Nim where
+    type Move Nim = Int
+    type Score Nim = Int
+    type Key Nim = Nim
     key = id
     player (Nim p _) = p
     score (Nim p i) =
@@ -57,8 +65,9 @@ instance Hashable Nim where
     hashWithSalt s (Nim p i) = hashWithSalt s (p, i)
 
 type HashTable x k v = HST.HashTable x k v
+type GameTable q p = HashTable q (Key p) (Score p)
 
-scoref :: (GameTree p m s k) => (HashTable q k s -> p -> ST q s) -> HashTable q k s -> p -> ST q s
+scoref :: (GameTree p) => (GameTable q p -> p -> ST q (Score p)) -> GameTable q p -> p -> ST q (Score p)
 scoref f t pos
     | isFinal pos = return $ score pos
     | otherwise = do
@@ -71,8 +80,9 @@ scoref f t pos
                 s <- f t pos
                 H.insert t k s
                 return s
-
-minimax :: (GameTree p m s k) => HashTable q k s -> p -> ST q s
+ 
+-- TODO does hashtable work this way?
+minimax :: (GameTree p) => GameTable q p -> p -> ST q (Score p)
 minimax = scoref $ \t pos -> liftM (if player pos then maximum else minimum) $ mapM (minimax t) $ children pos
 
 solveWithM solvef t pos = do
@@ -80,7 +90,7 @@ solveWithM solvef t pos = do
     return $ (if player pos then maximumBy else minimumBy) (compare `on` (\(_, _, x) -> x))
         $ zipWith (\(m, p) s -> (p, m, s)) (moves pos) solutions
 
-runSolveWith :: (GameTree p m s k) => (forall q. (HashTable q k s -> p -> ST q s)) -> p -> (p, m, s)
+runSolveWith :: (GameTree p) => (forall q. (GameTable q p -> p -> ST q (Score p))) -> p -> (p, Move p, Score p)
 runSolveWith solvef pos = runST $ do
     t <- HST.new
     solveWithM solvef t pos
@@ -93,19 +103,19 @@ solveLineM solvef t pos = do
         else do (pms, s) <- solveLineM solvef t pos2
                 return (pm:pms, s)
 
-runSolveLine :: (GameTree p m s k) => (forall q. (HashTable q k s -> p -> ST q s)) -> p -> ([(p, m)], s)
+runSolveLine :: (GameTree p) => (forall q. (GameTable q p -> p -> ST q (Score p))) -> p -> ([(p, Move p)], Score p)
 runSolveLine solvef pos = runST $ do
     t <- HST.new
     solveLineM solvef t pos
 
-minimaxLine :: (GameTree p m s k) => p -> ([(p, m)], s)
+minimaxLine :: (GameTree p) => p -> ([(p, Move p)], Score p)
 minimaxLine = runSolveLine minimax
 
 printPosMove _ (p, m) = do
     putStrLn $ "Move: " ++ show m
     print p
 
-printLine :: (GameTree p m s k, Show p, Show m, Show s) => p -> IO ()
+printLine :: (GameTree p, Show p, Show (Move p), Show (Score p)) => p -> IO ()
 printLine pos = do
     putStrLn $ show pos
     let (pms, score) = minimaxLine pos
