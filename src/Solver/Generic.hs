@@ -37,7 +37,7 @@ data Nim = Nim Bool Int
 legal (Nim _ i) = i >= 0
 move (Nim p i) j = Nim (not p) (i - j)
 
-    -- A test class for GameTree
+-- A test class for GameTree
 instance GameTree Nim Int Int Nim where
     key = id
     player (Nim p _) = p

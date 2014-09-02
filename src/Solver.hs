@@ -6,6 +6,7 @@ import Data.List.Split
 import Data.Functor
 import Data.Array.IArray
 import Solver.Generic
+import Solver.Interactive
 import Data.Maybe
 import Data.Hashable
 
@@ -79,6 +80,9 @@ instance GameTree DDState Card Int GameTreeKey where
     isFinal = (== 0) . playsLeft
     moves dds = map movef $ candidatePlays dds
         where movef play = (play, playCardS dds play)
+
+instance InteractiveGame DDState Card Int GameTreeKey where
+    acceptMove p s = Just p
 
 printStart p = blockOutState p $ blockOut [[]]
 
