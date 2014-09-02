@@ -1,3 +1,4 @@
+{-# LANGUAGE FunctionalDependencies #-}
 module Hand where
 import System.Random
 import System.Random.Shuffle
@@ -10,18 +11,23 @@ import Data.List
 import Data.Maybe
 import Data.Array
 import Data.Hashable
+import qualified Data.Bimap as BM
 
-class Show1 x where
-    show1 :: x -> [Char]
+-- TODO maybe lenses?
+class (Ord x) => ShowRead x where
+    showmap :: BM.Bimap x String
+
+show1 :: (ShowRead x) => x -> String
+show1 x = fromJust . BM.lookup x $ showmap
+
+read1 :: (ShowRead x) => String -> x
+read1 s = fromJust . BM.lookupR s $ showmap
 
 data Suit = Club | Diamond | Heart | Spade
     deriving (Show, Enum, Eq, Ord)
 
-instance Show1 Suit where
-    show1 Club = "c" -- "♣"
-    show1 Diamond = "d" -- "♢"
-    show1 Heart = "h" -- "♡"
-    show1 Spade = "s" -- "♠"
+instance ShowRead Suit where
+    showmap = BM.fromList [(Club, "c"), (Diamond, "d"), (Heart, "h"), (Spade, "s")]
 
 instance Hashable Suit where
     hashWithSalt i = hashWithSalt i . fromEnum
@@ -29,8 +35,8 @@ instance Hashable Suit where
 data Direction = North | East | South | West
     deriving (Show, Enum, Eq, Ord)
 
-instance Show1 Direction where
-    show1 x = [head $ show x]
+instance ShowRead Direction where
+    showmap = BM.fromList $ (\x -> (x, show x)) <$> [North ..]
 
 instance Hashable Direction where
     hashWithSalt i = hashWithSalt i . fromEnum
@@ -49,13 +55,13 @@ newtype Rank = Rank Int
 
 unrank (Rank i) = i
 
-instance Show1 Rank where
-    show1 (Rank 8) = "T"
-    show1 (Rank 9) = "J"
-    show1 (Rank 10) = "Q"
-    show1 (Rank 11) = "K"
-    show1 (Rank 12) = "A"
-    show1 (Rank x) = show $ x + 2
+instance ShowRead Rank where
+    showmap = BM.fromList $ concat [((\x -> (Rank x, show $ x + 2)) <$> [0 .. 7]),
+                                    [(Rank 8, "T"),
+                                     (Rank 9, "J"),
+                                     (Rank 10, "Q"),
+                                     (Rank 11, "K"),
+                                     (Rank 12, "A")]]
 
 instance Hashable Rank where
     hashWithSalt i = hashWithSalt i . unrank
@@ -67,9 +73,9 @@ instance Hashable Strain where
     hashWithSalt i (Trump s) = hashWithSalt i s
     hashWithSalt i _ = hashWithSalt i (4 :: Int)
 
-instance Show1 Strain where
-    show1 Notrump = "n"
-    show1 (Trump s) = show1 s
+instance ShowRead Strain where
+    showmap = BM.insert Notrump "n" $ BM.fromList $ (\(k, v) -> (Trump k, v)) <$> BM.assocs showmap
+    --showmap = BM.fromList $ (\(k, v) -> (Trump k, v)) <$> BM.assocs showmap
 
 data Bid = Bid {level :: Int, strain :: Strain}
     deriving (Eq)
