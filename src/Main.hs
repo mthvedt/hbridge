@@ -10,7 +10,7 @@ import qualified Solver.Interactive
 -- | The main entry point.
 main :: IO ()
 main = do
-    let d = Rand.evalRand (H.randPartialDealM 8) $ Rand.mkStdGen 0
+    let d = Rand.evalRand (H.randPartialDealM 1) $ Rand.mkStdGen 0
         dds = S.initDDState d (H.Trump H.Heart) H.West
     --Solver.Generic.printLine dds
     -- print dds

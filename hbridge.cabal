@@ -9,14 +9,16 @@ data-dir: ""
 
 executable hbridge
     build-depends:
-        hashable ==1.1.*,
-        hashtables ==1.1.*,
+-- TOOD hashtable or hashtables?
+        hashable == 1.1.*,
+        hashtables == 1.1.*,
         MonadRandom == 0.1.*,
         random == 1.0.*,
         random-shuffle == 0.0.*,
         array == 0.4.*,
         split == 0.2.*,
-        bimap == 0.*,
+        containers == 0.5.*,
+        bimap == 0.2.*,
         QuickCheck -any,
         base -any
     main-is: Main.hs
@@ -25,14 +27,15 @@ executable hbridge
 
 test-suite test-hbridge
     build-depends:
-        hashable ==1.1.*,
-        hashtables ==1.1.*,
+        hashable == 1.1.*,
+        hashtables == 1.1.*,
         MonadRandom == 0.1.*,
         random == 1.0.*,
         random-shuffle == 0.0.*,
         array == 0.4.*,
         split == 0.2.*,
-        bimap == 0.*,
+        containers == 0.5.*,
+        bimap == 0.2.*,
         QuickCheck -any,
         base -any
     type: exitcode-stdio-1.0

@@ -9,6 +9,8 @@ import Solver.Generic
 import Solver.Interactive
 import Data.Maybe
 import Data.Hashable
+import qualified Data.Bimap as BM
+import qualified Data.Map
 
 candidatePlaysH deal dir msuit =
     case concat $ map (\s -> map (\c -> Card (Rank c) s) $ candidatePlaysD deal dir s) suits of
@@ -82,7 +84,8 @@ instance GameTree DDState Card Int GameTreeKey where
         where movef play = (play, playCardS dds play)
 
 instance InteractiveGame DDState Card Int GameTreeKey where
-    acceptMove p s = Just p
+    acceptMove p s = do s <- BM.lookupR s showmap
+                        Data.Map.lookup s $ movemap p
 
 printStart p = blockOutState p $ blockOut [[]]
 

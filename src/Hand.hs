@@ -13,7 +13,7 @@ import Data.Array
 import Data.Hashable
 import qualified Data.Bimap as BM
 
--- TODO maybe lenses?
+-- TODO we can probably implement this better with Control.Lens
 class (Ord x) => ShowRead x where
     showmap :: BM.Bimap x String
 
@@ -97,6 +97,9 @@ instance Ord Card where
 
 instance Show Card where
     show (Card r s) = show1 s ++ show1 r
+
+instance ShowRead Card where
+    showmap = BM.fromList $ (\x -> (x, show x)) <$> fulldeck
 
 partialDeck i = [Card (Rank v) s | v <- [(13 - i) .. 12], s <- [Club ..]]
 fulldeck = partialDeck 13

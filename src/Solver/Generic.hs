@@ -7,6 +7,7 @@ import Control.Monad.ST
 import Data.STRef
 import qualified Data.HashTable.Class as H
 import qualified Data.HashTable.ST.Basic as HST
+import qualified Data.Map as Map
 import Data.Hashable
 
 -- A two player zero sum game with alternating turns.
@@ -30,6 +31,9 @@ class (Eq k, Hashable k, Num s, Ord s) => GameTree p m s k | p -> m s k where
     moves :: p -> [(m, p)]
     children :: p -> [p]
     children p = map snd $ moves p
+
+movemap :: (GameTree p m s k, Ord m) => p -> Map.Map m p
+movemap = Map.fromList . moves
 
 data Nim = Nim Bool Int
     deriving (Eq, Show)
