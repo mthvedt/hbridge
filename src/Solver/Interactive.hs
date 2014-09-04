@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Solver.Interactive where
+import qualified Data.Maybe
 import Solver.Generic
 
 class (GameTree p, Show (Move p), Show (Score p)) => InteractiveGame p where
@@ -16,7 +17,8 @@ doInteractive p
 -- Hard code player == east-west for now
     | player p = do
           putStrLn $ showbig p
-          let (p2, m) = head . fst $ minimaxLine p
+          let m = head . fst $ minimaxLine p
+              p2 = Data.Maybe.fromJust $ makeMove p m
           putStr "My move: "
           putStrLn $ show m
           doInteractive p2
