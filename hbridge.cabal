@@ -23,6 +23,7 @@ executable hbridge
         base -any
     main-is: Main.hs
     buildable: True
+    ghc-options: -Wall
     hs-source-dirs: src
 
 test-suite test-hbridge
@@ -42,4 +43,5 @@ test-suite test-hbridge
     main-is: Main.hs
     buildable: True
     cpp-options: -DMAIN_FUNCTION=testMain
+    ghc-options: -Wall
     hs-source-dirs: src

@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies, FlexibleInstances #-}
 module Solver where
 import Hand
 import Data.List
@@ -67,28 +67,46 @@ playCardS (DDState d t l hs hp hc pl ns) card@(Card cr cs) =
           nhc = if winner then hc else Just card
           nhp = if winner then hp else Just hs
 
-newtype GameTreeKey = GameTreeKey (FastDeal, Maybe Suit, Maybe Card, Int)
+newtype DDKey = DDKey (FastDeal, Maybe Suit, Maybe Card, Int)
     deriving (Eq)
 
-instance Hashable GameTreeKey where
-    hashWithSalt i (GameTreeKey t) = hashWithSalt i t
+instance Hashable DDKey where
+    hashWithSalt i (DDKey t) = hashWithSalt i t
 
-instance GameTree DDState where
-    type Key DDState = GameTreeKey
-    type Move DDState = Card
+instance Game DDState where
+    newtype Move DDState = DDMove Card
     type Score DDState = Int
-    key (DDState d t l hs hp hc pl ns) = GameTreeKey (d, l, hc, ns)
     player d = case pair $ hotseat d of
         NorthSouth -> True
         EastWest -> False
     score = nsTricks
     isFinal = (== 0) . playsLeft
+    move p m = lookup m $ moves p
+
+instance Show (Move DDState) where
+    show (DDMove c) = show c
+
+instance Eq (Move DDState) where
+    (==) (DDMove c1) (DDMove c2) = (==) c1 c2
+
+instance ShowRead (Move DDState) where
+    showmap = BM.fromList $ (\(c, s) -> (DDMove c, s)) <$> BM.toList showmap
+
+instance Ord (Move DDState) where
+    compare (DDMove c1) (DDMove c2) = compare c1 c2
+
+instance Solvable DDState where
+    type Key DDState = DDKey
+    key (DDState d t l hs hp hc pl ns) = DDKey (d, l, hc, ns)
+    -- TODO have moves be less complicated
     moves dds = map movef $ candidatePlays dds
-        where movef play = (play, playCardS dds play)
+        where movef play = (DDMove play, playCardS dds play)
 
 instance InteractiveGame DDState where
-    acceptMove p s = do s <- BM.lookupR s showmap
-                        Data.Map.lookup s $ movemap p
+    parseMove _ s = BM.lookupR s showmap
+    -- TODO more generic printing
+    --showbig = blockOutState
+    showgame = show
 
 printStart p = blockOutState p $ blockOut [[]]
 
@@ -107,11 +125,6 @@ printTrick pms =
           moveStrs = [[], "     " ++ mn ++ "     ", unwords [mw, ms, me], []]
           center = blockOut moveStrs
 
--- TODO more generic printing
-instance ShowBig DDState where
-    --showbig = blockOutState
-    showbig = show
-
 -- TODO unshift cards
 reconstructLine :: [(DDState, Card)] -> [(DDState, Card)]
 reconstructLine [] = []
@@ -122,7 +135,3 @@ reconstructLine ((p0, m0):pms) = (unshiftS p0, m0):(reconstructLine npms)
 
 showLine :: DDState -> [(DDState, Card)] -> String
 showLine initp line = intercalate ("\n" ++ replicate 44 '=' ++ "\n") $ (printStart initp):(printTrick <$> chunksOf 4 (reconstructLine line))
-
--- TODO game tree how?
--- GameTree, GameTreeState -> Position
--- Position -> GameTree:w
