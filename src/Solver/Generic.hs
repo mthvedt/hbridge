@@ -7,10 +7,8 @@ import Data.Functor
 import qualified Data.Maybe
 import Control.Monad
 import Control.Monad.ST
-import Data.STRef
 import qualified Data.HashTable.Class as H
 import qualified Data.HashTable.ST.Basic as HST
-import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import Data.Hashable
 
@@ -45,12 +43,12 @@ fmove p m = Data.Maybe.fromJust $ move p m
 -- A Tracable lets us 'reconstruct' some type from a series of moves.
 class (Solvable p) => Tracable p where
     type Target p :: *
-    type TMove p :: *
+    -- TODO how to properly do Move (Target p)
     traceInit :: Target p -> p
     -- detrace: Reconstruct a game
     detrace :: p -> [Move p] -> Target p
     -- tracemove: Break down a move given an original position and a line of play
-    traceMove :: Target p -> TMove p -> [Move p] -> Move p
+    traceMove :: Target p -> Move (Target p) -> [Move p] -> Move p
     -- detrace move: Reconstruct a move given a line of play
     -- TODO default impl
     --- detraceMove :: Move p -> [Move p] -> TMove p
@@ -73,7 +71,6 @@ instance (Solvable g) => Solvable (TrivialTracable g) where
 
 instance (Solvable g) => Tracable (TrivialTracable g) where
     type Target (TrivialTracable g) = g
-    type TMove (TrivialTracable g) = Move g
     traceInit = TrivialTracable
     detrace (TrivialTracable g) _ = g
     traceMove _ m _ = TTMove m
@@ -83,10 +80,11 @@ data Line p = Line { lpos :: p, origpos :: Target p, moveseq :: Seq.Seq (Move p)
 newline :: (Tracable g) => Target g -> Line g
 newline g = Line (traceInit g) g Seq.empty
 
+detraceLine :: (Tracable p) => Line p -> Target p
 detraceLine (Line p _ ms) = detrace p $ F.toList ms
 
 instance (Tracable g) => Game (Line g) where
-    data Move (Line g) = LMove (TMove g)
+    newtype Move (Line g) = LMove (Move (Target g))
     type Score (Line g) = Score g
     player = player
     score = score
@@ -105,7 +103,7 @@ mnimmove (Nim p i) j = Nim (not p) (i - j)
 
 -- A test class 
 instance Game Nim where
-    data Move Nim = NimMove Int
+    newtype Move Nim = NimMove Int
     type Score Nim = Int
     player (Nim p _) = p
     score (Nim p i) =
@@ -115,9 +113,9 @@ instance Game Nim where
             _ -> 0
     isFinal (Nim _ i) = i `elem` [0, 1]
     move p (NimMove i) = do
-        let r = mnimmove p i
-        guard $ legal p
-        return p
+        let p2 = mnimmove p i
+        guard $ legal p2
+        return p2
 
 instance Solvable Nim where
     type Key Nim = Nim

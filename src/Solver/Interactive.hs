@@ -1,11 +1,19 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, UndecidableInstances #-}
 module Solver.Interactive where
-import qualified Data.Maybe
 import Solver.Generic
 
-class (Game p, Show (Move p), Show (Score p)) => InteractiveGame p where
+class (Game p, Show (Score p)) => InteractiveGame p where
     parseMove :: p -> String -> Maybe (Move p)
+    -- Using Show for Move (Target p) can yield undecidable types
+    showmove :: Move p -> String
     showgame :: p -> String
+
+instance (Tracable g, Show (Move (Target g)), Show (Score g),
+                 InteractiveGame (Target g)) =>
+             InteractiveGame (Line g) where
+    parseMove (Line _ tp _) i = parseMove tp i >>= return . LMove
+    showmove (LMove m) = show m
+    showgame = showgame . detraceLine
 
 acceptMove p i = parseMove p i >>= move p
 
@@ -23,7 +31,7 @@ doInteractive p
           let m = head . fst $ minimaxLine p
               p2 = fmove p m
           putStr "My move: "
-          putStrLn $ show m
+          putStrLn $ showmove m
           doInteractive p2
     | otherwise = do
         putStrLn $ showgame p
