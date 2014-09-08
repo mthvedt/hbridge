@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification, TypeFamilies, FlexibleContexts, RankNTypes #-}
+{-# LANGUAGE TypeFamilies, FlexibleContexts, ExistentialQuantification, RankNTypes #-}
 module Solver.Generic where
 import Data.List
 import qualified Data.Foldable as F
@@ -12,8 +12,11 @@ import qualified Data.HashTable.ST.Basic as HST
 import qualified Data.Sequence as Seq
 import Data.Hashable
 
+-- TODO how it should be:
+-- A 'reduced position' that can be built from a normal game.
+-- p -> (rp, rs) where s is 'reconstruction information' that can rebuild the orig game
+
 -- A two player zero sum game with alternating turns.
--- TODO maybe a SolvableGame
 class (Ord (Score p)) => Game p where
     data Move p :: *
     type Score p :: *
@@ -32,68 +35,47 @@ class (Game p, Hashable (Key p), Eq (Key p)) => Solvable p where
     key :: p -> Key p
     -- Given a position, returns the (move, position) pairs reachable.
     moves :: p -> [(Move p, p)]
-    -- Children: a potentially faster implementatino of moves
+    -- Children: a potentially faster implementation of moves
     children :: p -> [p]
     children p = map snd $ moves p
 
 fmove :: (Game p) => p -> Move p -> p
 fmove p m = Data.Maybe.fromJust $ move p m
 
--- A class to represent Games that 'lose' information as they are played.
--- A Tracable lets us 'reconstruct' some type from a series of moves.
-class (Solvable p) => Tracable p where
-    type Target p :: *
-    -- TODO how to properly do Move (Target p)
-    traceInit :: Target p -> p
-    -- detrace: Reconstruct a game
-    detrace :: p -> [Move p] -> Target p
-    -- tracemove: Break down a move given an original position and a line of play
-    traceMove :: Target p -> Move (Target p) -> [Move p] -> Move p
-    -- detrace move: Reconstruct a move given a line of play
-    -- TODO default impl
-    --- detraceMove :: Move p -> [Move p] -> TMove p
+--type View p0 p1 v = Iso' p0 (p1 v)
+{-
+class (Game p0, Solvable p1) => View p0 p1 where
+    data Ctx p0 p1 :: *
+    view :: p0 -> (p1, Ctx p0 p1)
+    unviewMove :: Move p1 -> Ctx p0 p1 -> Move p0
+-}
+type View p0 p1 ctx = p0 -> (p1, ctx, Move p1 -> ctx -> Move p0)
+trivialView :: View p p ()
+trivialView p = (p, (), \m _ -> m)
 
-newtype TrivialTracable g = TrivialTracable g
+composeView :: View p0 p1 ctx0 -> View p1 p2 ctx1 -> View p0 p2 (ctx0, ctx1)
+composeView v0 v1 p0 = (p2, (ctx0, ctx1), f2)
+    where (p1, ctx0, f0) = v0 p0
+          (p2, ctx1, f1) = v1 p1
+          f2 m2 (ctx0, ctx1) = let m1 = f1 m2 ctx1
+                               in f0 m1 ctx0
 
-instance (Game g) => Game (TrivialTracable g) where
-    data Move (TrivialTracable g) = TTMove (Move g)
-    type Score (TrivialTracable g) = Score g
-    player (TrivialTracable g) = player g
-    score (TrivialTracable g) = score g
-    isFinal (TrivialTracable g) = isFinal g
-    move (TrivialTracable g) (TTMove m) = TrivialTracable <$> move g m
+data Line p = Line { lpos :: p, moveseq :: Seq.Seq (Move p) }
+newline :: (Game g) => g -> Line g
+newline g = Line g Seq.empty
 
-instance (Solvable g) => Solvable (TrivialTracable g) where
-    type Key (TrivialTracable g) = Key g
-    key (TrivialTracable g) = key g
-    moves (TrivialTracable g) = (\(m, p) -> (TTMove m, TrivialTracable p)) <$> moves g
-    children (TrivialTracable g) = TrivialTracable <$> children g
+lineView :: View (Line p) p [Move p]
+lineView l = (lpos l, F.toList $ moveseq l, \m _ -> LMove m)
 
-instance (Solvable g) => Tracable (TrivialTracable g) where
-    type Target (TrivialTracable g) = g
-    traceInit = TrivialTracable
-    detrace (TrivialTracable g) _ = g
-    traceMove _ m _ = TTMove m
-    -- detraceMove m _ = m
-
-data Line p = Line { lpos :: p, origpos :: Target p, moveseq :: Seq.Seq (Move p) }
-newline :: (Tracable g) => Target g -> Line g
-newline g = Line (traceInit g) g Seq.empty
-
-detraceLine :: (Tracable p) => Line p -> Target p
-detraceLine (Line p _ ms) = detrace p $ F.toList ms
-
-instance (Tracable g) => Game (Line g) where
-    newtype Move (Line g) = LMove (Move (Target g))
+instance (Game g) => Game (Line g) where
+    newtype Move (Line g) = LMove (Move g)
     type Score (Line g) = Score g
-    player = player
-    score = score
-    isFinal = isFinal
-    move (Line p op ms) (LMove m) = do
-        let ml = F.toList ms
-            m2 = traceMove op m ml
-        p2 <- move p m2
-        return $ Line p2 op $ ms Seq.|> m2
+    player = player . lpos
+    score = score . lpos
+    isFinal = isFinal . lpos
+    move (Line p ms) (LMove m) = do
+        p2 <- move p m
+        return $ Line p2 $ ms Seq.|> m
 
 data Nim = Nim Bool Int
     deriving (Eq, Show)

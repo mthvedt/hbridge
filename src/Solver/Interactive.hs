@@ -2,18 +2,18 @@
 module Solver.Interactive where
 import Solver.Generic
 
+-- TODO
 class (Game p, Show (Score p)) => InteractiveGame p where
     parseMove :: p -> String -> Maybe (Move p)
     -- Using Show for Move (Target p) can yield undecidable types
+    -- TODO showmove is no longer needed after removing (Target p)
     showmove :: Move p -> String
     showgame :: p -> String
 
-instance (Tracable g, Show (Move (Target g)), Show (Score g),
-                 InteractiveGame (Target g)) =>
-             InteractiveGame (Line g) where
-    parseMove (Line _ tp _) i = parseMove tp i >>= return . LMove
-    showmove (LMove m) = show m
-    showgame = showgame . detraceLine
+instance (InteractiveGame g) => InteractiveGame (Line g) where
+    parseMove (Line p _) s = parseMove p s >>= return . LMove
+    showmove (LMove m) = showmove m
+    showgame = showgame . lpos
 
 acceptMove p i = parseMove p i >>= move p
 
@@ -22,22 +22,25 @@ printScore game =
        putStrLn . show $ score game
 
 -- TODO computer moves and such
-doInteractive :: (Solvable p, InteractiveGame p) => p -> IO ()
-doInteractive p
+doInteractive :: (Solvable p1, InteractiveGame p) => p -> View p p1 c -> IO ()
+doInteractive p v
     | isFinal p = printScore p
 -- Hard code player == east-west for now
     | player p = do
           putStrLn $ showgame p
-          let m = head . fst $ minimaxLine p
-              p2 = fmove p m
+          putStrLn "Thinking..."
+          let (p1, ctx, rf) = v p
+              m = head . fst $ minimaxLine p1
+              m0 = rf m ctx
+              p2 = fmove p m0
           putStr "My move: "
-          putStrLn $ showmove m
-          doInteractive p2
+          putStrLn $ showmove m0
+          doInteractive p2 v
     | otherwise = do
         putStrLn $ showgame p
         i <- getLine
         case acceptMove p i of
-            Just p2 -> doInteractive p2
+            Just p2 -> doInteractive p2 v
             Nothing -> do
                 putStrLn "Invalid move!"
-                doInteractive p
+                doInteractive p v

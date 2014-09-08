@@ -80,7 +80,7 @@ instance Hashable DDKey where
     hashWithSalt i (DDKey t) = hashWithSalt i t
 
 instance Game DDState where
-    newtype Move DDState = DDMove Card
+    newtype Move DDState = DDMove { theCard :: Card }
     type Score DDState = Int
     player d = case pair $ hotseat d of
         NorthSouth -> True
@@ -90,7 +90,7 @@ instance Game DDState where
     move p m = lookup m $ moves p
 
 instance Show (Move DDState) where
-    show (DDMove c) = show c
+    show = show . theCard
 
 instance Eq (Move DDState) where
     (==) (DDMove c1) (DDMove c2) = (==) c1 c2
@@ -115,13 +115,16 @@ instance InteractiveGame DDState where
     --showbig = blockOutState
     showgame = show
 
-{-
-instance Tracable DDState where
-    type Target p = undefined
-    traceInit tp = undefined p
-    detrace p ms = undefined tp
-    traceMove p tm ms = undefined move
--}
+compress :: DDState -> (DDState, [Card])
+compress (DDState (FastDeal deal) a b c d e f g) = (DDState (FastDeal deal2) a b c d e f g, cs)
+    where cs = fulldeck \\ getCardsD deal
+          deal2 = foldl shiftCardD deal cs
+decompress :: Move DDState -> [Card] -> Move DDState
+decompress (DDMove c) cs = DDMove $ foldl unshiftCard c cs
+
+fastHandView :: View DDState DDState [Card]
+fastHandView dds = (dds2, cards, decompress)
+    where (dds2, cards) = compress dds
 
 printStart :: DDState -> [Char]
 printStart p = blockOutState p $ blockOut [[]]
