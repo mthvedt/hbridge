@@ -19,24 +19,24 @@ candidatePlaysH d dir msuit =
             (Just s) -> [s]
             Nothing -> reverse [Club ..]
 
-data DDState = DDState
-    {deal :: FastDeal, trump :: Strain, lead :: Maybe Suit,
+data DDState d = DDState
+    {deal :: d, trump :: Strain, lead :: Maybe Suit,
     hotseat :: Direction, highPlayer :: Maybe Direction, highCard :: Maybe Card, playsLeft :: Int,
     nsTricks :: Int}
     deriving (Eq, Show)
 
-blockOutState :: DDState -> Block -> [Char]
+blockOutState :: IDeal d => DDState d -> Block -> [Char]
 blockOutState (DDState d t _ _ _ _ _ ns) center = intercalate "\n" $ combineBlocks [[info, north, none], [west, center, east], [none, south, none]]
     where none = blockOut [[]]
           info = blockOut ["Trump " ++ show1 t, "NS " ++ show ns]
           [north, east, south, west] = handBlocks <$> getHands d
 
-initDDState :: FastDeal -> Strain -> Direction -> DDState
+initDDState :: IDeal d => d -> Strain -> Direction -> DDState d
 initDDState d t declarer = DDState d t Nothing declarer Nothing Nothing c 0
     -- where c = foldr (++) $ map length $ concatMap getSuits $ getHands d
     where c = sum $ handCount <$> getHands d
 
-candidatePlays :: DDState -> [Card]
+candidatePlays :: IDeal d => DDState d -> [Card]
 candidatePlays state = candidatePlaysH d h c
     where d = deal state
           h = hotseat state
@@ -58,12 +58,12 @@ compareCardsM :: Strain -> Maybe Card -> Card -> Bool
 compareCardsM s (Just c1) c2 = compareCards s c1 c2
 compareCardsM _ Nothing _ = False
 
-tryResolve :: DDState -> DDState
+tryResolve :: DDState d -> DDState d
 tryResolve dds@(DDState d t _ _ hp _ pl tc)
     | pl `mod` 4 == 0 = DDState d t Nothing (fromJust hp) hp Nothing pl $ tc + 1 - (fromEnum . pair $ fromJust hp)
     | otherwise = dds
 
-playCardS :: DDState -> Card -> DDState
+playCardS :: IDeal d => DDState d -> Card -> DDState d
 playCardS (DDState d t l hs hp hc pl ns) card@(Card cr cs) =
     tryResolve $ DDState (playCardD d hs cs (unrank cr)) t nl (rotate 1 hs) nhp nhc (pl - 1) ns
     where winner = compareCardsM t hc card
@@ -73,15 +73,15 @@ playCardS (DDState d t l hs hp hc pl ns) card@(Card cr cs) =
           nhc = if winner then hc else Just card
           nhp = if winner then hp else Just hs
 
-newtype DDKey = DDKey (FastDeal, Maybe Suit, Maybe Card, Int)
+newtype (Eq d) => DDKey d = DDKey (d, Maybe Suit, Maybe Card, Int)
     deriving (Eq)
 
-instance Hashable DDKey where
+instance (Eq d, Hashable d) => Hashable (DDKey d) where
     hashWithSalt i (DDKey t) = hashWithSalt i t
 
-instance Game DDState where
-    newtype Move DDState = DDMove { theCard :: Card }
-    type Score DDState = Int
+instance (Eq d, Hashable d, IDeal d) => Game (DDState d) where
+    newtype Move (DDState d) = DDMove { theCard :: Card }
+    type Score (DDState d) = Int
     player d = case pair $ hotseat d of
         NorthSouth -> True
         EastWest -> False
@@ -89,48 +89,53 @@ instance Game DDState where
     isFinal = (== 0) . playsLeft
     move p m = lookup m $ moves p
 
-instance Show (Move DDState) where
+instance Show (Move (DDState d)) where
     show = show . theCard
 
-instance Eq (Move DDState) where
+instance Eq (Move (DDState d)) where
     (==) (DDMove c1) (DDMove c2) = (==) c1 c2
 
-instance ShowRead (Move DDState) where
+instance ShowRead (Move (DDState d)) where
     showmap = BM.fromList $ (\(c, s) -> (DDMove c, s)) <$> BM.toList showmap
 
-instance Ord (Move DDState) where
+instance Ord (Move (DDState d)) where
     compare (DDMove c1) (DDMove c2) = compare c1 c2
 
-instance Solvable DDState where
-    type Key DDState = DDKey
+instance (Hashable d, Eq d, IDeal d) => Solvable (DDState d) where
+    type Key (DDState d) = DDKey d
     key (DDState d _ l _ _ hc _ ns) = DDKey (d, l, hc, ns)
     -- TODO have moves be less complicated
     moves dds = map movef $ candidatePlays dds
         where movef play = (DDMove play, playCardS dds play)
 
-instance InteractiveGame DDState where
+instance (Hashable d, Eq d, IDeal d) => InteractiveGame (DDState d) where
     parseMove _ s = BM.lookupR s showmap
     showmove = show
     -- TODO more generic printing
     --showbig = blockOutState
     showgame = show
 
-compress :: DDState -> (DDState, [Card])
-compress (DDState (FastDeal deal) a b c d e f g) = (DDState (FastDeal deal2) a b c d e f g, cs)
-    where cs = fulldeck \\ getCardsD deal
+-- TODO bug is here
+compress :: DDState Deal -> (DDState FastDeal, [Card])
+compress (DDState deal a b c d mhs f g) = (DDState (FastDeal deal2) a b c d hs2 f g, cs)
+    where cs = sortBy compareRank $ fulldeck \\ getCardsD deal
           deal2 = foldl shiftCardD deal cs
-decompress :: Move DDState -> [Card] -> Move DDState
-decompress (DDMove c) cs = DDMove $ foldl unshiftCard c cs
+          hs2 = case mhs of
+                    Just hs -> Just $ foldl shiftCard hs cs
+                    Nothing -> Nothing
+decompress :: Move (DDState d0) -> [Card] -> Move (DDState d1)
+decompress (DDMove c) cs = DDMove $ foldl (flip unshiftCard) c $ reverse cs
 
-fastHandView :: View DDState DDState [Card]
-fastHandView dds = (dds2, cards, decompress)
+fastHandView :: View (DDState Deal) (DDState FastDeal)
+fastHandViewH dds = (dds2, cards, decompress)
     where (dds2, cards) = compress dds
+fastHandView = View fastHandViewH
 
-printStart :: DDState -> [Char]
+printStart :: IDeal d => DDState d -> [Char]
 printStart p = blockOutState p $ blockOut [[]]
 
 -- A trick: a set of 4 moves
-printTrick :: Show b => [(DDState, b)] -> [Char]
+printTrick :: (IDeal d, Show b) => [(DDState d, b)] -> [Char]
 printTrick pms =
     blockOutState finalp center
     where [firstp, _, _, finalp] = fst <$> pms
@@ -144,14 +149,3 @@ printTrick pms =
           [mn, me, ms, mw] = zipWith moveMarker movesByDir [North ..]
           moveStrs = [[], "     " ++ mn ++ "     ", unwords [mw, ms, me], []]
           center = blockOut moveStrs
-
--- TODO unshift cards
-reconstructLine :: [(DDState, Card)] -> [(DDState, Card)]
-reconstructLine [] = []
-reconstructLine ((p0, m0):pms) = (unshiftS p0, m0):(reconstructLine npms)
-    where npms = (\(p, m) -> (unshiftS p, (unshiftCard m0 m))) <$> pms
-          unshiftS (DDState d t l hs hp hc pc ns) =
-              DDState (unshiftD d m0) t l hs hp hc pc ns
-
-showLine :: DDState -> [(DDState, Card)] -> String
-showLine initp line = intercalate ("\n" ++ replicate 44 '=' ++ "\n") $ (printStart initp):(printTrick <$> chunksOf 4 (reconstructLine line))

@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleContexts, UndecidableInstances #-}
 module Solver.Interactive where
 import Solver.Generic
+-- TODO remove
+import Hand
 
 -- TODO
 class (Game p, Show (Score p)) => InteractiveGame p where
@@ -22,22 +24,27 @@ printScore game =
        putStrLn . show $ score game
 
 -- TODO computer moves and such
-doInteractive :: (Solvable p1, InteractiveGame p) => p -> View p p1 c -> IO ()
-doInteractive p v
+doInteractive :: (Solvable p1, InteractiveGame p1, InteractiveGame p) => p -> View p p1 -> IO ()
+--doInteractive :: (Solvable p1, InteractiveGame p) => p -> View p p1 -> IO ()
+doInteractive p v@(View vf)
     | isFinal p = printScore p
 -- Hard code player == east-west for now
     | player p = do
           putStrLn $ showgame p
           putStrLn "Thinking..."
-          let (p1, ctx, rf) = v p
+          let (p1, ctx, rf) = vf p
               m = head . fst $ minimaxLine p1
               m0 = rf m ctx
               p2 = fmove p m0
+          -- putStrLn $ showgame p1
+          -- putStrLn $ show ctx
           putStr "My move: "
+          -- putStrLn $ showmove m
           putStrLn $ showmove m0
           doInteractive p2 v
     | otherwise = do
         putStrLn $ showgame p
+        -- TODO putStr "Your move: "
         i <- getLine
         case acceptMove p i of
             Just p2 -> doInteractive p2 v

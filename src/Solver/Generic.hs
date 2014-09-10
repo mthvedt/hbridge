@@ -5,6 +5,7 @@ import qualified Data.Foldable as F
 import Data.Function
 import Data.Functor
 import qualified Data.Maybe
+import qualified Control.Category as C
 import Control.Monad
 import Control.Monad.ST
 import qualified Data.HashTable.Class as H
@@ -49,23 +50,30 @@ class (Game p0, Solvable p1) => View p0 p1 where
     view :: p0 -> (p1, Ctx p0 p1)
     unviewMove :: Move p1 -> Ctx p0 p1 -> Move p0
 -}
-type View p0 p1 ctx = p0 -> (p1, ctx, Move p1 -> ctx -> Move p0)
-trivialView :: View p p ()
-trivialView p = (p, (), \m _ -> m)
+-- data View p0 p1 = forall ctx. Show ctx => View (p0 -> (p1, ctx, Move p1 -> ctx -> Move p0))
+data View p0 p1 = forall ctx. View (p0 -> (p1, ctx, Move p1 -> ctx -> Move p0))
+trivialView :: View p p
+trivialView = View $ \p -> (p, (), \m _ -> m)
 
-composeView :: View p0 p1 ctx0 -> View p1 p2 ctx1 -> View p0 p2 (ctx0, ctx1)
-composeView v0 v1 p0 = (p2, (ctx0, ctx1), f2)
+instance C.Category View where
+    id = trivialView
+    (.) = flip composeView
+
+composeView :: View p0 p1 -> View p1 p2 -> View p0 p2
+composeViewH v0 v1 p0 = (p2, (ctx0, ctx1), f2)
     where (p1, ctx0, f0) = v0 p0
           (p2, ctx1, f1) = v1 p1
           f2 m2 (ctx0, ctx1) = let m1 = f1 m2 ctx1
                                in f0 m1 ctx0
+composeView (View v0) (View v1) = View $ \p -> composeViewH v0 v1 p
 
 data Line p = Line { lpos :: p, moveseq :: Seq.Seq (Move p) }
 newline :: (Game g) => g -> Line g
 newline g = Line g Seq.empty
 
-lineView :: View (Line p) p [Move p]
-lineView l = (lpos l, F.toList $ moveseq l, \m _ -> LMove m)
+-- lineView :: Show (Move p) => View (Line p) p
+lineView :: View (Line p) p
+lineView = View $ \l -> (lpos l, F.toList $ moveseq l, \m _ -> LMove m)
 
 instance (Game g) => Game (Line g) where
     newtype Move (Line g) = LMove (Move g)

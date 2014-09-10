@@ -95,6 +95,9 @@ instance Ord Card where
         | r1 /= r2 = compare r1 r2
         | otherwise = EQ
 
+compareRank :: Card -> Card -> Ordering
+compareRank (Card r1 _) (Card r2 _) = compare r1 r2
+
 instance Show Card where
     show (Card r s) = show1 s ++ show1 r
 
@@ -158,6 +161,7 @@ shiftRank r2 r1 = Rank $ if ri1 < ri2 then ri1 + 1 else ri1
     where ri1 = unrank r1
           ri2 = unrank r2
 
+-- all cards lower or equal to r2 are shifted down
 unshiftRank r2 r1 = Rank $ if ri1 <= ri2 then ri1 - 1 else ri1
     where ri1 = unrank r1
           ri2 = unrank r2
@@ -228,11 +232,9 @@ instance Hashable Deal where
 instance Hashable FastDeal where
     hashWithSalt i = hashWithSalt i . theDeal
 
--- TODO polymorphic construction
--- newPartialDeal i d = Deal . listArray (0, 3) $ newHand <$> chunksOf i d
-newPartialDeal i d = FastDeal . Deal . listArray (North, West) $ newHand <$> chunksOf i d
+newPartialDeal i d = Deal . listArray (North, West) $ newHand <$> chunksOf i d
 newDeal = newPartialDeal 13
 
 randPartialDealM i = newPartialDeal i `liftM` randPartialDeckM i
-randDealM :: (RandomGen g) => Rand g FastDeal
+randDealM :: (RandomGen g) => Rand g Deal
 randDealM = randPartialDealM 13
