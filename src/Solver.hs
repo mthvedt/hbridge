@@ -22,7 +22,7 @@ candidatePlaysH d dir msuit =
 data DDState d = DDState
     {deal :: d, trump :: Strain, lead :: Maybe Suit,
     hotseat :: Direction, highPlayer :: Maybe Direction, highCard :: Maybe Card, playsLeft :: Int,
-    nsTricks :: Int}
+    nsScore :: Int}
     deriving (Eq, Show)
 
 blockOutState :: IDeal d => DDState d -> Block -> [Char]
@@ -60,7 +60,7 @@ compareCardsM _ Nothing _ = False
 
 tryResolve :: DDState d -> DDState d
 tryResolve dds@(DDState d t _ _ hp _ pl tc)
-    | pl `mod` 4 == 0 = DDState d t Nothing (fromJust hp) hp Nothing pl $ tc + 1 - (fromEnum . pair $ fromJust hp)
+    | pl `mod` 4 == 0 = DDState d t Nothing (fromJust hp) hp Nothing pl $ 1 - (fromEnum . pair $ fromJust hp)
     | otherwise = dds
 
 playCardS :: IDeal d => DDState d -> Card -> DDState d
@@ -73,7 +73,7 @@ playCardS (DDState d t l hs hp hc pl ns) card@(Card cr cs) =
           nhc = if winner then hc else Just card
           nhp = if winner then hp else Just hs
 
-newtype (Eq d) => DDKey d = DDKey (d, Maybe Suit, Maybe Card, Int)
+newtype (Eq d) => DDKey d = DDKey (d, Maybe Suit, Maybe Card)
     deriving (Eq)
 
 instance (Eq d, Hashable d) => Hashable (DDKey d) where
@@ -85,7 +85,7 @@ instance (Eq d, Hashable d, IDeal d) => Game (DDState d) where
     player d = case pair $ hotseat d of
         NorthSouth -> True
         EastWest -> False
-    score = nsTricks
+    score = nsScore
     isFinal = (== 0) . playsLeft
     move p m = lookup m $ moves p
 
@@ -103,7 +103,7 @@ instance Ord (Move (DDState d)) where
 
 instance (Hashable d, Eq d, IDeal d) => Solvable (DDState d) where
     type Key (DDState d) = DDKey d
-    key (DDState d _ l _ _ hc _ ns) = DDKey (d, l, hc, ns)
+    key (DDState d _ l _ _ hc _ ns) = DDKey (d, l, hc)
     -- TODO have moves be less complicated
     moves dds = map movef $ candidatePlays dds
         where movef play = (DDMove play, playCardS dds play)

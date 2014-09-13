@@ -18,12 +18,13 @@ import Data.Hashable
 -- p -> (rp, rs) where s is 'reconstruction information' that can rebuild the orig game
 
 -- A two player zero sum game with alternating turns.
-class (Ord (Score p)) => Game p where
+class (Real (Score p)) => Game p where
     data Move p :: *
     type Score p :: *
     -- TODO player type
     player :: p -> Bool
     -- The goal of the True player is to maximize score, the False player to minimze it
+    -- Score tells us how the score has *changed* since the last position
     score :: p -> Score p
     isFinal :: p -> Bool
     move :: p -> Move p -> Maybe p
@@ -117,7 +118,6 @@ memoScore f t pos
         case mr of
             Just r -> return r
             Nothing -> do
-                -- let s = score pos
                 s <- f t pos
                 H.insert t k s
                 return s
@@ -126,10 +126,11 @@ memoScore f t pos
 -- The solver fn only worries about scores. Once scores are figured out
 -- looking up the moves is sufficiently fast
 minimax1 :: (Solvable p) => GameTable q p -> p -> ST q (Score p)
-minimax1 t pos = optf scoredPositions
-    where optf :: (Monad m, Ord o) => m [o] -> m o
-          optf = liftM $ if player pos then maximum else minimum
-          scoredPositions = mapM (minimax t) $ children pos
+minimax1 t pos = do
+    let optf = liftM $ if player pos then maximum else minimum
+        scoredPositions = mapM (minimax t) $ children pos
+    childScore <- optf scoredPositions
+    return $ childScore + score pos
           
 minimax :: (Solvable p) => GameTable q p -> p -> ST q (Score p)
 minimax = memoScore minimax1
