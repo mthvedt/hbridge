@@ -43,37 +43,26 @@ class (Game p, Hashable (Key p), Eq (Key p)) => Solvable p where
 fmove :: (Game p) => p -> Move p -> p
 fmove p m = Data.Maybe.fromJust $ move p m
 
---type View p0 p1 v = Iso' p0 (p1 v)
-{-
-class (Game p0, Solvable p1) => View p0 p1 where
-    data Ctx p0 p1 :: *
-    view :: p0 -> (p1, Ctx p0 p1)
-    unviewMove :: Move p1 -> Ctx p0 p1 -> Move p0
--}
--- data View p0 p1 = forall ctx. Show ctx => View (p0 -> (p1, ctx, Move p1 -> ctx -> Move p0))
-data View p0 p1 = forall ctx. View (p0 -> (p1, ctx, Move p1 -> ctx -> Move p0))
+data View p0 p1 = View (p0 -> (p1, Move p1 -> Move p0))
 trivialView :: View p p
-trivialView = View $ \p -> (p, (), \m _ -> m)
+trivialView = View $ \p -> (p, id)
 
 instance C.Category View where
     id = trivialView
     (.) = flip composeView
 
 composeView :: View p0 p1 -> View p1 p2 -> View p0 p2
-composeViewH v0 v1 p0 = (p2, (ctx0, ctx1), f2)
-    where (p1, ctx0, f0) = v0 p0
-          (p2, ctx1, f1) = v1 p1
-          f2 m2 (ctx0, ctx1) = let m1 = f1 m2 ctx1
-                               in f0 m1 ctx0
+composeViewH v0 v1 p0 = (p2, f0 . f1)
+    where (p1, f0) = v0 p0
+          (p2, f1) = v1 p1
 composeView (View v0) (View v1) = View $ \p -> composeViewH v0 v1 p
 
 data Line p = Line { lpos :: p, moveseq :: Seq.Seq (Move p) }
 newline :: (Game g) => g -> Line g
 newline g = Line g Seq.empty
 
--- lineView :: Show (Move p) => View (Line p) p
 lineView :: View (Line p) p
-lineView = View $ \l -> (lpos l, F.toList $ moveseq l, \m _ -> LMove m)
+lineView = View $ \l -> (lpos l, LMove)
 
 instance (Game g) => Game (Line g) where
     newtype Move (Line g) = LMove (Move g)

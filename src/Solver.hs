@@ -115,7 +115,6 @@ instance (Hashable d, Eq d, IDeal d) => InteractiveGame (DDState d) where
     --showbig = blockOutState
     showgame = show
 
--- TODO bug is here
 compress :: DDState Deal -> (DDState FastDeal, [Card])
 compress (DDState deal a b c d mhs f g) = (DDState (FastDeal deal2) a b c d hs2 f g, cs)
     where cs = sortBy compareRank $ fulldeck \\ getCardsD deal
@@ -124,10 +123,11 @@ compress (DDState deal a b c d mhs f g) = (DDState (FastDeal deal2) a b c d hs2 
                     Just hs -> Just $ foldl shiftCard hs cs
                     Nothing -> Nothing
 decompress :: Move (DDState d0) -> [Card] -> Move (DDState d1)
+-- TODO shouldn't need to flip
 decompress (DDMove c) cs = DDMove $ foldl (flip unshiftCard) c $ reverse cs
 
 fastHandView :: View (DDState Deal) (DDState FastDeal)
-fastHandViewH dds = (dds2, cards, decompress)
+fastHandViewH dds = (dds2, flip decompress cards)
     where (dds2, cards) = compress dds
 fastHandView = View fastHandViewH
 

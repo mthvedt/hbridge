@@ -32,9 +32,9 @@ doInteractive p v@(View vf)
     | player p = do
           putStrLn $ showgame p
           putStrLn "Thinking..."
-          let (p1, ctx, rf) = vf p
+          let (p1, rf) = vf p
               m = head . fst $ minimaxLine p1
-              m0 = rf m ctx
+              m0 = rf m
               p2 = fmove p m0
           -- putStrLn $ showgame p1
           -- putStrLn $ show ctx
