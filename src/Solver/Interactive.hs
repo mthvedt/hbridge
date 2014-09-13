@@ -13,9 +13,9 @@ class (Game p, Show (Score p)) => InteractiveGame p where
     showgame :: p -> String
 
 instance (InteractiveGame g) => InteractiveGame (Line g) where
-    parseMove (Line p _) s = parseMove p s >>= return . LMove
+    parseMove (Line p _ _) s = parseMove p s >>= return . LMove
     showmove (LMove m) = showmove m
-    showgame = showgame . lpos
+    showgame = showgame . currpos
 
 acceptMove p i = parseMove p i >>= move p
 

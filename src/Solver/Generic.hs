@@ -37,6 +37,8 @@ class (Game p, Hashable (Key p), Eq (Key p)) => Solvable p where
     key :: p -> Key p
     -- Given a position, returns the (move, position) pairs reachable.
     moves :: p -> [(Move p, p)]
+    -- The initial p is a type providing arg
+    initScores :: p -> (Score p, Score p)
     -- Children: a potentially faster implementation of moves
     children :: p -> [p]
     children p = map snd $ moves p
@@ -44,7 +46,7 @@ class (Game p, Hashable (Key p), Eq (Key p)) => Solvable p where
 fmove :: (Game p) => p -> Move p -> p
 fmove p m = Data.Maybe.fromJust $ move p m
 
-data View p0 p1 = View (p0 -> (p1, Move p1 -> Move p0))
+newtype View p0 p1 = View { runView :: p0 -> (p1, Move p1 -> Move p0) }
 trivialView :: View p p
 trivialView = View $ \p -> (p, id)
 
@@ -58,22 +60,26 @@ composeViewH v0 v1 p0 = (p2, f0 . f1)
           (p2, f1) = v1 p1
 composeView (View v0) (View v1) = View $ \p -> composeViewH v0 v1 p
 
-data Line p = Line { lpos :: p, moveseq :: Seq.Seq (Move p) }
+-- TODO maybe line should be a linked list
+data Line p = Line { currpos :: p, currscore :: Score p, moveseq :: Seq.Seq (Move p) }
 newline :: (Game g) => g -> Line g
-newline g = Line g Seq.empty
+newline g = Line g 0 Seq.empty
 
 lineView :: View (Line p) p
-lineView = View $ \l -> (lpos l, LMove)
+lineView = View $ \l -> (currpos l, LMove)
+
+fmovev :: (Game p0) => View p0 p1 -> p0 -> Move p1 -> p0
+fmovev v p0 m1 = Data.Maybe.fromJust $ move p0 $ (snd $ runView v p0) m1
 
 instance (Game g) => Game (Line g) where
     newtype Move (Line g) = LMove (Move g)
     type Score (Line g) = Score g
-    player = player . lpos
-    score = score . lpos
-    isFinal = isFinal . lpos
-    move (Line p ms) (LMove m) = do
+    player = player . currpos
+    score = score . currpos
+    isFinal = isFinal . currpos
+    move (Line p sc ms) (LMove m) = do
         p2 <- move p m
-        return $ Line p2 $ ms Seq.|> m
+        return $ Line p2 (sc + score p2) $ ms Seq.|> m
 
 data Nim = Nim Bool Int
     deriving (Eq, Show)
@@ -100,42 +106,91 @@ instance Game Nim where
 instance Solvable Nim where
     type Key Nim = Nim
     key = id
+    initScores _ = (-1, 1)
     moves n = filter (legal . snd) $ map (\i -> (NimMove i, mnimmove n i)) [2, 3, 4]
 
 instance Hashable Nim where
     hashWithSalt s (Nim p i) = hashWithSalt s (p, i)
 
 type HashTable x k v = HST.HashTable x k v
-type GameTable q p = HashTable q (Key p) (Score p)
-type SolverF p = forall q. GameTable q p -> p -> ST q (Score p)
+type GameTable q p s = HashTable q (Key p) s
+type SolverF p s = forall q. GameTable q p s -> p -> ST q s
 
-memoScore :: (Solvable p) => SolverF p -> GameTable q p -> p -> ST q (Score p)
-memoScore f t pos
-    | isFinal pos = return $ score pos
-    | otherwise = do
-        let k = key pos
-        mr <- H.lookup t $ key pos
-        case mr of
-            Just r -> return r
-            Nothing -> do
-                s <- f t pos
-                H.insert t k s
-                return s
-        
--- TODO does hashtable work this way?
+memoScore :: (Solvable p) => SolverF p s -> SolverF p s
+memoScore f t pos = do
+    let k = key pos
+    mr <- H.lookup t $ key pos
+    case mr of
+        Just r -> return r
+        Nothing -> do
+            s <- f t pos
+            H.insert t k s
+            return s
+
+-- TODO defactor
 -- The solver fn only worries about scores. Once scores are figured out
 -- looking up the moves is sufficiently fast
-minimax1 :: (Solvable p) => GameTable q p -> p -> ST q (Score p)
-minimax1 t pos = do
-    let optf = liftM $ if player pos then maximum else minimum
-        scoredPositions = mapM (minimax t) $ children pos
-    childScore <- optf scoredPositions
-    return $ childScore + score pos
+minimax1 :: (Solvable p) => GameTable q p (Score p) -> p -> ST q (Score p)
+minimax1 t pos
+    | isFinal pos = return $ score pos
+    | otherwise = do
+          let optf = liftM $ if player pos then maximum else minimum
+              scoredPositions = mapM (minimax t) $ children pos
+          childScore <- optf scoredPositions
+          return $ childScore + score pos
           
-minimax :: (Solvable p) => GameTable q p -> p -> ST q (Score p)
+minimax :: (Solvable p) => GameTable q p (Score p) -> p -> ST q (Score p)
 minimax = memoScore minimax1
 
-solveWithM :: (Solvable p) => SolverF p -> GameTable q p -> p -> ST q (Move p, Score p)
+-- The goal of alphabeta is to find an optimal x s.t. alpha > x > beta.
+-- for player True, finds x s.t. max (alpha, s) is optimal OR s >= beta
+-- for player False, finds x s.t. min (s, beta) is optimal OR s <= alpha
+-- where s = the current score + x
+-- The (alpha, beta) window is called the search premise
+alphabeta1 :: (Solvable p) => GameTable q p (Score p) -> p -> Score p -> Score p -> Score p -> ST q (Score p)
+alphabeta1 t pos sc alpha beta = do
+        -- the true score of this branch is somewhere (above, below) xq
+        mmemxq <- H.lookup t $ key pos
+        let memxq = case mmemxq of
+                         Just v -> v
+                         -- Choose the (minimum, maximum) possible xq
+                         Nothing -> if player pos
+                                    then fst $ initScores pos
+                                    else snd $ initScores pos
+        doAlphaBeta t pos (children pos) (sc + score pos) alpha beta memxq memxq
+
+-- like alphabeta1, except we now have a candidate xq
+-- We need to track xq separately from alpha/beta, since we'll be memoizing it
+-- xq is the child score, sc is the score up to this node inclusive,
+-- alpha and beta are whole-tree scores
+doAlphaBeta :: (Solvable p) => GameTable q p (Score p) -> p -> [p] -> Score p -> Score p -> Score p -> Score p -> Score p -> ST q (Score p)
+doAlphaBeta t pos cps sc alpha beta memxq xq =
+    if alpha1 >= beta1
+       -- Early termination -- refutes the search premise
+       then returnAlphaBeta t pos memxq xq
+       else case cps of
+            [] -> returnAlphaBeta t pos memxq xq
+            (cp:cps1) -> do
+                xqc <- alphabeta1 t cp sc alpha1 beta1
+                let xq1 = if player0 then max xq xqc else min xq xqc
+                doAlphaBeta t pos cps1 sc alpha1 beta1 memxq xq1
+     where alpha1 = if player0 then max alpha $ xq + sc else alpha
+           beta1 = if player0 then beta else min beta $ xq + sc
+           player0 = player pos
+
+returnAlphaBeta :: (Solvable p) => GameTable q p (Score p) -> p -> Score p -> Score p -> ST q (Score p)
+returnAlphaBeta t pos memxq xq
+    -- We remember memxq to avoid cache hits
+    | if player pos then xq <= memxq else xq >= memxq = return xq
+    | otherwise = do
+        H.insert t (key pos) xq
+        return $ score pos + xq
+
+alphabeta :: (Solvable p) => GameTable q p (Score p) -> p -> ST q (Score p)
+alphabeta t pos = alphabeta1 t pos 0 alpha beta
+    where (alpha, beta) = initScores pos
+
+solveWithM :: (Solvable p, Ord s) => SolverF p s -> GameTable q p s -> p -> ST q (Move p, s)
 solveWithM solvef t pos =
     -- Assumed that this will populate our memo table with solutions
     let optby = if player pos then maximumBy else minimumBy
@@ -145,13 +200,13 @@ solveWithM solvef t pos =
     in do scoredMoves <- mapM (scoreMoveM t) $ moves pos
           return $ optby (compare `on` snd) scoredMoves
 
-runSolveWith :: (Solvable p) => SolverF p -> p -> (Move p, Score p)
+runSolveWith :: (Solvable p, Ord s) => SolverF p s -> p -> (Move p, s)
 runSolveWith solvef pos = runST $ do
     t <- HST.new
     solveWithM solvef t pos
 
-solveLineM :: (Solvable p) => SolverF p -> GameTable q p -> p ->
-                  ST q ([Move p], Score p)
+solveLineM :: (Solvable p, Ord s) => SolverF p s -> GameTable q p s -> p ->
+                  ST q ([Move p], s)
 solveLineM solvef t pos = do
     (move, s) <- solveWithM solvef t pos
     let pos2 = fmove pos move
@@ -160,15 +215,17 @@ solveLineM solvef t pos = do
         else do (moves, s) <- solveLineM solvef t pos2
                 return (move:moves, s)
 
-runSolveLine :: (Solvable p) => SolverF p -> p -> ([Move p], Score p)
+runSolveLine :: (Solvable p, Ord s) => SolverF p s -> p -> ([Move p], s)
 runSolveLine solvef pos  = runST $ do
     t <- HST.new
     solveLineM solvef t pos
 
 -- TODO does the hash table even do anything? need a SolverMonad
--- TODO NEXT instead return a line
 minimaxLine :: (Solvable p) => p -> ([Move p], Score p)
 minimaxLine = runSolveLine minimax
+alphaBetaLine :: (Solvable p) => p -> ([Move p], Score p)
+alphaBetaLine = runSolveLine alphabeta
+-- TODO NEXT instead return a line
 
 printPosMove p m = do
     putStrLn $ "Move: " ++ show m

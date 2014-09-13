@@ -13,7 +13,7 @@ import qualified Data.Bimap as BM
 candidatePlaysH :: IDeal d => d -> Direction -> Maybe Suit -> [Card]
 candidatePlaysH d dir msuit =
     case concat $ map (\s -> map (\c -> Card (Rank c) s) $ candidatePlaysD d dir s) suits of
-        [] -> candidatePlaysH d dir Nothing
+        [] -> if msuit == Nothing then [] else candidatePlaysH d dir Nothing
         x -> x
     where suits = case msuit of
             (Just s) -> [s]
@@ -25,10 +25,10 @@ data DDState d = DDState
     nsScore :: Int}
     deriving (Eq, Show)
 
-blockOutState :: IDeal d => DDState d -> Block -> [Char]
-blockOutState (DDState d t _ _ _ _ _ ns) center = intercalate "\n" $ combineBlocks [[info, north, none], [west, center, east], [none, south, none]]
+blockOutState :: IDeal d => Line (DDState d) -> Block -> [Char]
+blockOutState (Line (DDState d t _ _ _ _ _ _) sc _) center = intercalate "\n" $ combineBlocks [[info, north, none], [west, center, east], [none, south, none]]
     where none = blockOut [[]]
-          info = blockOut ["Trump " ++ show1 t, "NS " ++ show ns]
+          info = blockOut ["Trump " ++ show1 t, "NS " ++ show sc]
           [north, east, south, west] = handBlocks <$> getHands d
 
 initDDState :: IDeal d => d -> Strain -> Direction -> DDState d
@@ -59,13 +59,13 @@ compareCardsM s (Just c1) c2 = compareCards s c1 c2
 compareCardsM _ Nothing _ = False
 
 tryResolve :: DDState d -> DDState d
-tryResolve dds@(DDState d t _ _ hp _ pl tc)
+tryResolve dds@(DDState d t _ _ hp _ pl _)
     | pl `mod` 4 == 0 = DDState d t Nothing (fromJust hp) hp Nothing pl $ 1 - (fromEnum . pair $ fromJust hp)
     | otherwise = dds
 
 playCardS :: IDeal d => DDState d -> Card -> DDState d
-playCardS (DDState d t l hs hp hc pl ns) card@(Card cr cs) =
-    tryResolve $ DDState (playCardD d hs cs (unrank cr)) t nl (rotate 1 hs) nhp nhc (pl - 1) ns
+playCardS (DDState d t l hs hp hc pl _) card@(Card cr cs) =
+    tryResolve $ DDState (playCardD d hs cs (unrank cr)) t nl (rotate 1 hs) nhp nhc (pl - 1) 0
     where winner = compareCardsM t hc card
           nl = case l of
                 Just _ -> l
@@ -103,10 +103,11 @@ instance Ord (Move (DDState d)) where
 
 instance (Hashable d, Eq d, IDeal d) => Solvable (DDState d) where
     type Key (DDState d) = DDKey d
-    key (DDState d _ l _ _ hc _ ns) = DDKey (d, l, hc)
+    key (DDState d _ l _ _ hc _ _) = DDKey (d, l, hc)
     -- TODO have moves be less complicated
     moves dds = map movef $ candidatePlays dds
         where movef play = (DDMove play, playCardS dds play)
+    initScores d = (0, (playsLeft d + 3) `div` 4)
 
 instance (Hashable d, Eq d, IDeal d) => InteractiveGame (DDState d) where
     parseMove _ s = BM.lookupR s showmap
@@ -131,16 +132,17 @@ fastHandViewH dds = (dds2, flip decompress cards)
     where (dds2, cards) = compress dds
 fastHandView = View fastHandViewH
 
-printStart :: IDeal d => DDState d -> [Char]
+printStart :: IDeal d => Line (DDState d) -> [Char]
 printStart p = blockOutState p $ blockOut [[]]
 
 -- A trick: a set of 4 moves
-printTrick :: (IDeal d, Show b) => [(DDState d, b)] -> [Char]
+printTrick :: (IDeal d, Show b) => [(Line (DDState d), b)] -> [Char]
 printTrick pms =
-    blockOutState finalp center
-    where [firstp, _, _, finalp] = fst <$> pms
+    blockOutState finall center
+    where [firstl, _, _, finall] = fst <$> pms
+          firstp = currpos firstl
           firstMover = rotate (-1) $ hotseat firstp
-          winner = fromJust $ highPlayer finalp
+          winner = fromJust . highPlayer $ currpos finall
           movesByDir = take 4 . drop (4 - fromEnum firstMover) . cycle $ show . snd <$> pms
           moveMarker x i
               | i == firstMover = "<" ++ x ++ ">"
@@ -149,3 +151,12 @@ printTrick pms =
           [mn, me, ms, mw] = zipWith moveMarker movesByDir [North ..]
           moveStrs = [[], "     " ++ mn ++ "     ", unwords [mw, ms, me], []]
           center = blockOut moveStrs
+
+-- TODO generify
+-- TODO use the line apparatus somehow
+showLine :: (IDeal d, Hashable d, Eq d) => DDState d -> [Move (DDState d)] -> String
+showLine initp ms = intercalate ("\n" ++ replicate 44 '=' ++ "\n") pstrs
+    where initl = newline initp
+          ps = tail $ scanl (fmovev lineView) initl ms
+          pms = zip ps ms
+          pstrs = (printStart initl):(printTrick <$> chunksOf 4 pms)
